@@ -1,0 +1,29 @@
+# Development PostgreSQL for the Kalimni API.
+#   docker compose up -d        start (data persists in the named volume)
+#   docker compose down -v      stop and wipe all data
+services:
+  db:
+    # pgvector-enabled Postgres 16 (vector similarity search for the AI
+    # companion's RAG layer). Data from the previous postgres:16-alpine image
+    # is compatible; REINDEX after the first boot (musl -> glibc collations).
+    image: pgvector/pgvector:pg16
+    container_name: kalimni-db
+    environment:
+      POSTGRES_DB: kalimni
+      POSTGRES_USER: kalimni
+      POSTGRES_PASSWORD: kalimni
+    ports:
+      # Host 5433 (not 5432) so this DB coexists with other local Postgres
+      # instances — e.g. the siara project's db already on 5432. Container-side
+      # port is unchanged; only the host mapping moves.
+      - "5433:5432"
+    volumes:
+      - kalimni_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kalimni -d kalimni"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  kalimni_pgdata:

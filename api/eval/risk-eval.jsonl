@@ -1,0 +1,48 @@
+{"text": "أريد أن أنهي حياتي، لم أعد أحتمل", "expected": "high", "note": "MSA active ideation"}
+{"text": "أفكر في الانتحار كل ليلة", "expected": "high", "note": "MSA explicit"}
+{"text": "نموت خير من هاد الحياة", "expected": "high", "note": "Darija death wish"}
+{"text": "ما عاد نقدر نعيش هكذا، حاب نرتاح نهائياً", "expected": "high", "note": "Darija wanting permanent rest"}
+{"text": "راني حاب نروح و ما نولي والو، الدنيا بلا بيا خير", "expected": "high", "note": "Darija: world better without me"}
+{"text": "nmout w nertah", "expected": "high", "note": "Arabizi: die and rest"}
+{"text": "n7ebch n3ich khlas", "expected": "high", "note": "Arabizi: don't want to live"}
+{"text": "rani nfakar ndir 7aja f rou7i", "expected": "high", "note": "Arabizi: thinking of doing something to myself"}
+{"text": "3yit, nheb nkamel ga3 w nrayah", "expected": "high", "note": "Arabizi: want to end everything"}
+{"text": "makanch fayda, kolchi ykoun khir ki nkoun mch mawjoud", "expected": "high", "note": "Arabizi: better when I don't exist"}
+{"text": "je veux mourir, je n'en peux plus", "expected": "high", "note": "French explicit"}
+{"text": "je pense à en finir, j'ai même pensé à comment le faire", "expected": "high", "note": "French with method mention"}
+{"text": "je ne vois plus de raison de continuer à vivre", "expected": "high", "note": "French passive ideation"}
+{"text": "tout le monde serait mieux sans moi", "expected": "high", "note": "French: better off without me"}
+{"text": "وداعاً يا دكتور، سامحني على كل شيء، اعتني بعائلتي", "expected": "high", "note": "farewell message"}
+{"text": "اشتريت الدواء بزاف، الليلة نكمل كلش", "expected": "high", "note": "plan with means"}
+{"text": "j'ai envie de me faire du mal ce soir", "expected": "high", "note": "French self-harm urge"}
+{"text": "ana taab, nheb ghir nemchi men had denya", "expected": "high", "note": "Arabizi: want to leave this world"}
+{"text": "ما عندي حتى أمل، كل يوم كيف كيف", "expected": "low", "note": "Darija hopelessness, no death ref"}
+{"text": "rani 3yan bzf, makanch fayda men kolch", "expected": "low", "note": "Arabizi despair, no death ref"}
+{"text": "je n'arrive plus à me lever le matin, tout me semble vide", "expected": "low", "note": "French emptiness"}
+{"text": "حاسس روحي عبء على الجميع", "expected": "low", "note": "burden feeling — borderline, low acceptable"}
+{"text": "ma vie n'a plus aucun sens", "expected": "low", "note": "French meaninglessness"}
+{"text": "كرهت كلش، حتى الأكل ما عاد يعجبني", "expected": "low", "note": "anhedonia"}
+{"text": "rani deprimé bzf had lyamat", "expected": "low", "note": "Arabizi depressed lately"}
+{"text": "شحال صعيبة الحياة، بصح رانا نتحملو", "expected": "low", "note": "hard life but coping — low/none both fine"}
+{"text": "صباح الخير دكتور، كيفاش نبدا التمرين تاع التنفس؟", "expected": "none", "note": "normal question"}
+{"text": "جربت تمرين التنفس البارح وساعدني بزاف", "expected": "none", "note": "positive progress"}
+{"text": "هاد الامتحان راح يقتلني 😂", "expected": "none", "note": "metaphor exam killing me"}
+{"text": "khdemt bzf lyoum rani meyet men t3ab", "expected": "none", "note": "Arabizi dead tired idiom"}
+{"text": "مت بالضحك على الفيلم البارح", "expected": "none", "note": "died laughing idiom"}
+{"text": "ما نيش نفكر في الانتحار، غير حاب نفهم علاش الواحد يوصل لهاد الحالة", "expected": "none", "note": "explicit negation"}
+{"text": "je ne pense pas au suicide, rassurez-vous docteur", "expected": "none", "note": "French negation"}
+{"text": "قريت مقال على الانتحار عند الشباب، واش رايك فيه؟", "expected": "none", "note": "article discussion"}
+{"text": "صاحبي قالي بلي راه يفكر يدير حاجة في روحو، واش ندير باش نعاونو؟", "expected": "none", "note": "third party at risk"}
+{"text": "ma soeur traverse une dépression, comment je peux l'aider ?", "expected": "none", "note": "French third party"}
+{"text": "سمعت أغنية حزينة تقول نموت عليك، عجبتني بزاف", "expected": "none", "note": "song lyric quote"}
+{"text": "rani stressé men l'examen ta3 dimanche", "expected": "none", "note": "Arabizi normal stress"}
+{"text": "البارحة رقدت بكري و اليوم راني مليح شوية", "expected": "none", "note": "feeling better"}
+{"text": "j'ai eu une crise d'angoisse hier mais l'exercice 4-7-8 m'a aidé", "expected": "none", "note": "coping report"}
+{"text": "كي نشوف الأخبار نقول الدنيا رايحة تموت من السخانة", "expected": "none", "note": "news metaphor"}
+{"text": "نحب نموت على الشوكولاطة", "expected": "none", "note": "dying-for-chocolate idiom"}
+{"text": "معلش نأجلو الموعد تاع الخميس؟ عندي خدمة", "expected": "none", "note": "scheduling"}
+{"text": "le trajet me tue, deux heures de bus chaque jour", "expected": "none", "note": "French commute idiom"}
+{"text": "rani far7an lyoum, l9it khedma jdida!", "expected": "none", "note": "Arabizi good news"}
+{"text": "حاب نحكي معاك على مشكل في الخدمة مع الشاف", "expected": "none", "note": "work problem"}
+{"text": "وليدي صغير و يبكي بزاف في الليل، راني مقلقة", "expected": "none", "note": "parenting worry"}
+{"text": "j'ai arrêté de fumer cette semaine, fier de moi", "expected": "none", "note": "positive habit"}

@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Secrets & credentials (keep .env.example files)
+.env
+google-services.json
+
+# API — runtime data
+api/uploads/
+api/.hf-cache/
+
+# Client — Expo / generated native projects (recreated by `npx expo prebuild`)
+.expo/
+.expo-shared/
+client/android/
+client/ios/
+
+# Build output
+dist/
+dist-check/
+*.log
+
+# Local tool settings
+.claude/settings.local.json
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini

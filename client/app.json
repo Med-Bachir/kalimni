@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "Kalimni",
+    "slug": "kalimni",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "backgroundColor": "#F6FAFC",
+    "android": {
+      "package": "com.kalimni.app",
+      "googleServicesFile": "./google-services.json",
+      "softwareKeyboardLayoutMode": "resize",
+      "permissions": [
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
+        "ACCESS_NETWORK_STATE",
+        "BLUETOOTH_CONNECT",
+        "CAMERA"
+      ]
+    },
+    "extra": {
+      "eas": {
+        "projectId": "38cf82d5-e99f-469a-8b56-3a8c70660fc1"
+      }
+    },
+    "owner": "siara-ai",
+    "plugins": [
+      "expo-audio",
+      "expo-asset"
+    ]
+  }
+}
