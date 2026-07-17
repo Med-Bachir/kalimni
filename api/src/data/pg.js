@@ -8,7 +8,26 @@ const config = require('../config');
 let seq = 0;
 const uid = (prefix) => `${prefix}_${Date.now().toString(36)}_${(++seq).toString(36)}`;
 
-const pool = new Pool({ connectionString: config.databaseUrl });
+// Hosted Postgres (Render, Neon, Supabase, RDS...) requires TLS; local Docker
+// does not. Rule: use SSL for any non-local host — this also covers Render's
+// INTERNAL hostname ("dpg-xxxx-a"), which has no giveaway domain. Override with
+// PGSSL=true/false. rejectUnauthorized is false because Render's cert chain
+// isn't in Node's default trust store (the connection is still encrypted).
+function databaseNeedsSsl(url) {
+  if (process.env.PGSSL === 'true') return true;
+  if (process.env.PGSSL === 'false') return false;
+  try {
+    const host = new URL(url.replace(/^postgres(ql)?:\/\//, 'http://')).hostname;
+    return !['localhost', '127.0.0.1', '::1', ''].includes(host);
+  } catch {
+    return false;
+  }
+}
+
+const pool = new Pool({
+  connectionString: config.databaseUrl,
+  ssl: databaseNeedsSsl(config.databaseUrl) ? { rejectUnauthorized: false } : false,
+});
 
 const toCamel = (s) => s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 
