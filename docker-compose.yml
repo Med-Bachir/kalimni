@@ -13,10 +13,7 @@ services:
       POSTGRES_USER: kalimni
       POSTGRES_PASSWORD: kalimni
     ports:
-      # Host 5433 (not 5432) so this DB coexists with other local Postgres
-      # instances — e.g. the siara project's db already on 5432. Container-side
-      # port is unchanged; only the host mapping moves.
-      - "5433:5432"
+      # 5432
     volumes:
       - kalimni_pgdata:/var/lib/postgresql/data
     healthcheck:
