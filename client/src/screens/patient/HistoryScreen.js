@@ -2,8 +2,9 @@ import React from 'react';
 import { View, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { Screen, T, Card, Button, BackButton, LevelBadge, LoadingView, ErrorView, EmptyState } from '../../components/ui';
+import { Screen, T, Card, Button, BackButton, LevelBadge, LoadingView, ErrorView } from '../../components/ui';
 import ScoreTrendChart from '../../components/ScoreTrendChart';
+import MoodTrend from '../../components/MoodTrend';
 import { colors } from '../../theme/colors';
 import { useI18n } from '../../i18n';
 import { api } from '../../api/client';
@@ -28,12 +29,19 @@ export default function HistoryScreen({ navigation }) {
     queryKey: ['history'],
     queryFn: () => api('/questionnaires/history'),
   });
+  // Same query key the home screen and DailyCheckin use.
+  const { data: checkinData, isLoading: checkinsLoading } = useQuery({
+    queryKey: ['checkins'],
+    queryFn: () => api('/ai/checkins'),
+  });
 
-  if (isLoading) return <LoadingView />;
+  if (isLoading || checkinsLoading) return <LoadingView />;
   if (isError) return <ErrorView onRetry={refetch} />;
 
   const results = data.results || [];
   const due = checkinDue(results);
+  const entries = checkinData?.entries || [];
+  const notes = entries.filter((e) => e.note).slice(0, 5);
 
   return (
     <Screen edges={['top', 'bottom']}>
@@ -55,8 +63,34 @@ export default function HistoryScreen({ navigation }) {
           </View>
         )}
 
+        {/* Daily check-ins: the data the patient enters most often, so it
+            leads. Empty until they've logged at least one day. */}
+        {entries.length === 0 ? (
+          <Card style={{ padding: 16 }}>
+            <T size={13.5} color={colors.muted} style={{ lineHeight: 22 }}>{t('trend.empty')}</T>
+          </Card>
+        ) : (
+          <MoodTrend entries={entries} />
+        )}
+
+        {notes.length > 0 && (
+          <View style={{ gap: 10 }}>
+            <T w="700" size={17}>{t('trend.notesTitle')}</T>
+            {notes.map((e) => (
+              <Card key={e.id} style={{ padding: 14, gap: 6 }}>
+                <T size={11.5} color={colors.faint}>{formatDate(e.createdAt, lang)}</T>
+                <T size={13.5} color={colors.body} style={{ lineHeight: 22 }}>{e.note}</T>
+              </Card>
+            ))}
+          </View>
+        )}
+
+        <T w="700" size={17} style={{ marginTop: 6 }}>{t('history.questionnaireSection')}</T>
+
         {results.length === 0 ? (
-          <EmptyState icon="clipboard-outline" title={t('history.empty')} />
+          <Card style={{ padding: 16 }}>
+            <T size={13.5} color={colors.muted} style={{ lineHeight: 22 }}>{t('history.empty')}</T>
+          </Card>
         ) : (
           <View style={{ gap: 14 }}>
             {/* Trend per instrument */}

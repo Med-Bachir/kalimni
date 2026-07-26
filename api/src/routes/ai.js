@@ -88,9 +88,11 @@ router.get('/recommendations', async (req, res) => {
   res.json(await recommendations.recommendFor(req.user));
 });
 
-// GET /api/ai/checkins — the patient's own recent entries.
+// GET /api/ai/checkins — the patient's own recent entries. 60 rather than 30:
+// the trend charts compare two 14-day windows, and nothing stops a patient
+// logging twice in a day, so a count-based limit needs the headroom.
 router.get('/checkins', async (req, res) => {
-  res.json({ entries: await repos.journalEntriesOf(req.user.id, 30) });
+  res.json({ entries: await repos.journalEntriesOf(req.user.id, 60) });
 });
 
 module.exports = router;

@@ -111,7 +111,7 @@ export default function ProfileScreen({ navigation }) {
         <Card style={{ borderRadius: 18 }}>
           <MenuRow icon="person-outline" label={t('profile.personalData')} onPress={() => navigation.navigate('PersonalData')} />
           <MenuRow
-            icon="clipboard-outline" label={t('profile.questionnaireResults')}
+            icon="stats-chart-outline" label={t('profile.questionnaireResults')}
             onPress={() => navigation.navigate('History')}
             right={latestResult ? <LevelBadge label={L(latestResult.label)} level={latestResult.level} /> : undefined}
           />

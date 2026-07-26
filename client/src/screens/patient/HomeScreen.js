@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Screen, T, Avatar, Card, SectionHeader } from '../../components/ui';
 import AppointmentCard from '../../components/AppointmentCard';
 import DailyCheckin from '../../components/DailyCheckin';
+import { MoodRibbon } from '../../components/MoodTrend';
 import { checkinDue } from './HistoryScreen';
 import { colors } from '../../theme/colors';
 import { useI18n } from '../../i18n';
@@ -35,6 +36,12 @@ export default function HomeScreen({ navigation }) {
   const { data: apptData } = useQuery({
     queryKey: ['appointments', 'upcoming'],
     queryFn: () => api('/appointments?scope=upcoming'),
+  });
+  // Same query key as DailyCheckin — one request feeds the form and the trend,
+  // so saving today's entry refreshes the ribbon under it.
+  const { data: checkinData } = useQuery({
+    queryKey: ['checkins'],
+    queryFn: () => api('/ai/checkins'),
   });
 
   const specialist = specialistData?.specialist;
@@ -108,8 +115,13 @@ export default function HomeScreen({ navigation }) {
           </View>
         )}
 
-        {/* Daily mood check-in (hides itself once today's entry exists) */}
+        {/* Daily mood check-in (hides itself once today's entry exists), then
+            the week it feeds — so what the patient gave comes straight back. */}
         <DailyCheckin />
+        <MoodRibbon
+          entries={checkinData?.entries}
+          onPress={() => navigation.navigate('History')}
+        />
 
         {/* Biweekly progress check-in */}
         {showCheckin && (
