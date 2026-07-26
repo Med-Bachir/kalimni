@@ -20,7 +20,8 @@ dist/
 dist-check/
 *.log
 
-# Local tool settings
+# Local tool settings (permission allowlists accumulate per-machine paths)
+.claude/settings.json
 .claude/settings.local.json
 
 # OS junk
