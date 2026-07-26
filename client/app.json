@@ -7,6 +7,12 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "backgroundColor": "#F6FAFC",
+    "updates": {
+      "url": "https://u.expo.dev/38cf82d5-e99f-469a-8b56-3a8c70660fc1"
+    },
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
     "android": {
       "package": "com.kalimni.app",
       "googleServicesFile": "./google-services.json",
