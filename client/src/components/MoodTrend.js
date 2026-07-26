@@ -194,10 +194,6 @@ export default function MoodTrend({ entries }) {
           <T size={12.5} color={trend.color} style={{ flex: 1, lineHeight: 20 }}>{trend.text}</T>
         </View>
       )}
-
-      <T size={12.5} color={colors.muted}>
-        {t('trend.total', { n: localizeDigits(entries.length, lang) })}
-      </T>
     </Card>
   );
 }

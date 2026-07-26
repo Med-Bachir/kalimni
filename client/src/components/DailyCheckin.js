@@ -8,6 +8,7 @@ import { colors } from '../theme/colors';
 import { useI18n } from '../i18n';
 import { api } from '../api/client';
 import { localizeDigits } from '../utils/format';
+import { isMilestone, journeyFor } from '../utils/milestones';
 
 // Daily check-in: mood/stress/energy/sleep on a 1-5 tap scale + optional
 // journal note. The card renders on HomeScreen and hides itself once today's
@@ -46,14 +47,16 @@ export default function DailyCheckin() {
   const [open, setOpen] = useState(false);
   const [values, setValues] = useState({ mood: 3, stress: 3, energy: 3, sleep: 3 });
   const [note, setNote] = useState('');
-  const [result, setResult] = useState(null); // { message, suggestion }
+  const [result, setResult] = useState(null); // { message, suggestion, milestone? }
 
   const { data } = useQuery({ queryKey: ['checkins'], queryFn: () => api('/ai/checkins') });
 
   const save = useMutation({
     mutationFn: () => api('/ai/checkin', { method: 'POST', body: { ...values, note: note.trim() || undefined } }),
-    onSuccess: ({ feedback }) => {
-      setResult(feedback);
+    onSuccess: ({ feedback, total }) => {
+      // The server sends the post-insert total, so a milestone is celebrated
+      // in this same screen rather than a refetch later.
+      setResult({ ...feedback, milestone: isMilestone(total) ? journeyFor(total).reached : null });
       queryClient.invalidateQueries({ queryKey: ['checkins'] });
     },
   });
@@ -106,6 +109,19 @@ export default function DailyCheckin() {
                     {result.message}
                   </T>
                 </View>
+                {result.milestone && (
+                  <Card style={{
+                    padding: 16, gap: 8, alignItems: 'center',
+                    backgroundColor: colors.successBg, borderColor: colors.successBg,
+                  }}>
+                    <Ionicons name={result.milestone.icon} size={30} color={colors.success} />
+                    <T w="700" size={15} color={colors.success}>{t('journey.celebrate')}</T>
+                    <T size={13.5} color={colors.body} style={{ textAlign: 'center', lineHeight: 21 }}>
+                      {t(`journey.milestone.${result.milestone.at}`)}
+                    </T>
+                  </Card>
+                )}
+
                 {result.suggestion && (
                   <Card
                     onPress={() => openSuggestion(result.suggestion)}

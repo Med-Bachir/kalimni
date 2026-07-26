@@ -541,6 +541,11 @@ const journalEntriesOf = (userId, limit = 30) =>
     [userId, limit]
   );
 
+// Lifetime count, separate from the windowed list above: the journey milestones
+// never reset, so they can't be derived from a LIMITed page of rows.
+const journalEntryCountOf = (userId) =>
+  one('SELECT count(*)::int AS total FROM journal_entries WHERE user_id = $1', [userId]);
+
 const savePushToken = (userId, token, platform) =>
   run(
     `INSERT INTO push_tokens (token, user_id, platform, updated_at)
@@ -590,5 +595,5 @@ module.exports = {
   getOrCreateAiConversation, setAiConversationStatus, insertAiMessage, aiMessagesOf,
   getAiState, upsertAiState, bumpAiMessageCount, deleteAiThread, hasOpenAiAlert,
   // journal / daily check-in
-  insertJournalEntry, journalEntriesOf,
+  insertJournalEntry, journalEntriesOf, journalEntryCountOf,
 };

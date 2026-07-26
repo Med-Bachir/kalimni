@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Screen, T, Card, Button, BackButton, LevelBadge, LoadingView, ErrorView } from '../../components/ui';
 import ScoreTrendChart from '../../components/ScoreTrendChart';
 import MoodTrend from '../../components/MoodTrend';
+import JourneyCard from '../../components/JourneyCard';
 import { colors } from '../../theme/colors';
 import { useI18n } from '../../i18n';
 import { api } from '../../api/client';
@@ -70,7 +71,10 @@ export default function HistoryScreen({ navigation }) {
             <T size={13.5} color={colors.muted} style={{ lineHeight: 22 }}>{t('trend.empty')}</T>
           </Card>
         ) : (
-          <MoodTrend entries={entries} />
+          <>
+            <JourneyCard total={checkinData?.total ?? entries.length} />
+            <MoodTrend entries={entries} />
+          </>
         )}
 
         {notes.length > 0 && (

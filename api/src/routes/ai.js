@@ -79,7 +79,10 @@ router.post('/checkin', async (req, res) => {
     userId: req.user.id, mood, stress, energy, sleep,
     note: note ? String(note).slice(0, 2000) : null,
   });
-  res.status(201).json({ entry, feedback: companion.checkinFeedback(req.user, entry) });
+  // Post-insert total, so the client can celebrate a milestone in the same
+  // response rather than waiting for the list to refetch.
+  const { total } = await repos.journalEntryCountOf(req.user.id);
+  res.status(201).json({ entry, total, feedback: companion.checkinFeedback(req.user, entry) });
 });
 
 // GET /api/ai/recommendations — content picked for THIS patient's case
@@ -92,7 +95,11 @@ router.get('/recommendations', async (req, res) => {
 // the trend charts compare two 14-day windows, and nothing stops a patient
 // logging twice in a day, so a count-based limit needs the headroom.
 router.get('/checkins', async (req, res) => {
-  res.json({ entries: await repos.journalEntriesOf(req.user.id, 60) });
+  const [entries, { total }] = await Promise.all([
+    repos.journalEntriesOf(req.user.id, 60),
+    repos.journalEntryCountOf(req.user.id),
+  ]);
+  res.json({ entries, total });
 });
 
 module.exports = router;
