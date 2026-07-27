@@ -177,6 +177,29 @@ async function handleCrisis(user, conversation, text, riskInfo) {
   return { reply, status: 'crisis_hold', resources: CRISIS_RESOURCES };
 }
 
+// --- follow-up sanitising ------------------------------------------------------------
+// The prompt asks the model to return "" when there is nothing safe to
+// re-open, and it does not reliably comply — given a conversation about
+// hopelessness and medication it still offered a breezy "how was your day?".
+// Nothing sensitive leaked, but a cheerful home-screen question aimed at
+// someone in despair lands badly, so the decision is made here in code rather
+// than trusted to the model.
+
+// Sensitive terms that must never reach a home screen, whatever was generated.
+const FOLLOWUP_BLOCKED_TEXT =
+  /انتحار|أذ(ى|ية)|اكتئاب|دواء|مضاد|تشخيص|أعراض|علاج نفسي|suicid|automutilation|d[ée]pression|m[ée]dicament|antid[ée]presseur|diagnostic|sympt[ôo]me/i;
+
+// Distress states where saying nothing beats saying something light.
+const FOLLOWUP_BLOCKED_EMOTION = /despair|hopeless|suicid|worthless|grief|numb/i;
+
+function sanitizeFollowUp(raw, emotion) {
+  const text = String(raw || '').trim().slice(0, 200);
+  if (!text) return '';
+  if (FOLLOWUP_BLOCKED_TEXT.test(text)) return '';
+  if (emotion && FOLLOWUP_BLOCKED_EMOTION.test(String(emotion))) return '';
+  return text;
+}
+
 // --- rolling summary (fire-and-forget) ---------------------------------------------
 async function refreshSummaryAsync(conversationId, user) {
   try {
@@ -225,7 +248,7 @@ No advice, no judgement, no quotes from the user.`,
       emotion: parsed.emotion ? String(parsed.emotion).slice(0, 30) : null,
       // Always a string (never null), so an empty answer clears a stale
       // follow-up instead of COALESCE keeping the previous one forever.
-      followUp: String(parsed.followUp || '').trim().slice(0, 200),
+      followUp: sanitizeFollowUp(parsed.followUp, parsed.emotion),
       messagesSinceSummary: 0,
     });
   } catch (err) {
@@ -380,4 +403,6 @@ function checkinFeedback(user, { mood, stress, energy, sleep }) {
   };
 }
 
-module.exports = { handleMessage, checkinFeedback, followUpFor, EXERCISES, CRISIS_REPLY };
+module.exports = {
+  handleMessage, checkinFeedback, followUpFor, sanitizeFollowUp, EXERCISES, CRISIS_REPLY,
+};
