@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, avatarColors, severityColors } from '../theme/colors';
+import { API_URL } from '../config';
 import { initialsOf } from '../utils/format';
 import { useI18n } from '../i18n';
 import { tap as hapticTap } from '../utils/haptics';
@@ -224,6 +225,14 @@ export function ErrorView({ onRetry }) {
       <Ionicons name="cloud-offline-outline" size={44} color={colors.faint} />
       <T w="600" size={15} color={colors.muted} style={{ textAlign: 'center' }}>
         {t('common.networkError')}
+      </T>
+      {/* Which server did it actually try? `api()` collapses every failure into
+          ApiError('network'), so without this line a wrong EXPO_PUBLIC_API_URL,
+          a sleeping server and a dead connection are indistinguishable on a
+          device you cannot attach a debugger to. Shown only on the error path,
+          so it costs nothing when things work. */}
+      <T size={11} color={colors.faint} style={{ textAlign: 'center' }} selectable>
+        {API_URL}
       </T>
       {onRetry ? <Button title={t('common.retry')} variant="outline" onPress={onRetry} style={{ minWidth: 180 }} /> : null}
     </View>
