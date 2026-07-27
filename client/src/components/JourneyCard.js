@@ -2,6 +2,7 @@ import React from 'react';
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { T, Card } from './ui';
+import { ProgressBar, CountUp } from './motion';
 import { colors } from '../theme/colors';
 import { useI18n } from '../i18n';
 import { localizeDigits } from '../utils/format';
@@ -42,20 +43,17 @@ export default function JourneyCard({ total }) {
         <View style={{ gap: 8 }}>
           {/* Fill is a plain width % — RN flips row direction under RTL, so it
               grows from the correct edge in both languages. */}
-          <View style={{
-            height: BAR_HEIGHT, borderRadius: BAR_HEIGHT / 2,
-            backgroundColor: colors.track, overflow: 'hidden',
-          }}>
-            <View style={{
-              width: `${Math.round(Math.min(1, Math.max(0, progress)) * 100)}%`,
-              height: '100%', borderRadius: BAR_HEIGHT / 2, backgroundColor: colors.primary,
-            }} />
-          </View>
+          <ProgressBar
+            progress={progress}
+            height={BAR_HEIGHT}
+            trackColor={colors.track}
+            fillColor={colors.primary}
+          />
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
             <T size={12.5} color={colors.muted} style={{ flex: 1 }}>
               {t('journey.toNext', { n: n(remaining), name: t(`journey.milestone.${next.at}`) })}
             </T>
-            <T size={12.5} w="600" color={colors.muted}>{n(total)}</T>
+            <CountUp value={total} format={n} size={12.5} w="600" color={colors.muted} />
           </View>
         </View>
       ) : (

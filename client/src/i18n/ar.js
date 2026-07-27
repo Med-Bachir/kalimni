@@ -279,6 +279,11 @@ export default {
     empty: 'سجّل يومك من الصفحة الرئيسية، وسيظهر تطوّرك هنا.',
     notesTitle: 'من دفتر يومياتك',
   },
+  today: {
+    label: 'مقترح اليوم',
+    readIt: 'اقرأه الآن',
+    tryIt: 'جرّبه الآن',
+  },
   journey: {
     title: 'رحلتك',
     toNext: 'باقٍ {n} للوصول إلى «{name}»',

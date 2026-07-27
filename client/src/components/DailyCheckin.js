@@ -9,6 +9,8 @@ import { useI18n } from '../i18n';
 import { api } from '../api/client';
 import { localizeDigits } from '../utils/format';
 import { isMilestone, journeyFor } from '../utils/milestones';
+import { PopIn, Pulse } from './motion';
+import { tap as hapticTap, success as hapticSuccess, celebrate as hapticCelebrate } from '../utils/haptics';
 
 // Daily check-in: mood/stress/energy/sleep on a 1-5 tap scale + optional
 // journal note. The card renders on HomeScreen and hides itself once today's
@@ -25,7 +27,7 @@ function Scale({ label, value, onChange, lang }) {
         {[1, 2, 3, 4, 5].map((n) => (
           <TouchableOpacity
             key={n}
-            onPress={() => onChange(n)}
+            onPress={() => { hapticTap(); onChange(n); }}
             style={{
               flex: 1, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
               backgroundColor: value === n ? colors.primary : '#fff',
@@ -56,7 +58,11 @@ export default function DailyCheckin() {
     onSuccess: ({ feedback, total }) => {
       // The server sends the post-insert total, so a milestone is celebrated
       // in this same screen rather than a refetch later.
-      setResult({ ...feedback, milestone: isMilestone(total) ? journeyFor(total).reached : null });
+      const milestone = isMilestone(total) ? journeyFor(total).reached : null;
+      setResult({ ...feedback, milestone });
+      // A milestone gets the two-beat pattern; an ordinary save gets one.
+      if (milestone) hapticCelebrate();
+      else hapticSuccess();
       queryClient.invalidateQueries({ queryKey: ['checkins'] });
     },
   });
@@ -110,16 +116,23 @@ export default function DailyCheckin() {
                   </T>
                 </View>
                 {result.milestone && (
-                  <Card style={{
-                    padding: 16, gap: 8, alignItems: 'center',
-                    backgroundColor: colors.successBg, borderColor: colors.successBg,
-                  }}>
-                    <Ionicons name={result.milestone.icon} size={30} color={colors.success} />
-                    <T w="700" size={15} color={colors.success}>{t('journey.celebrate')}</T>
-                    <T size={13.5} color={colors.body} style={{ textAlign: 'center', lineHeight: 21 }}>
-                      {t(`journey.milestone.${result.milestone.at}`)}
-                    </T>
-                  </Card>
+                  <PopIn delay={120}>
+                    <Card style={{
+                      padding: 16, gap: 8, alignItems: 'center',
+                      backgroundColor: colors.successBg, borderColor: colors.successBg,
+                    }}>
+                      {/* Pulse sits behind the icon and stops after 3 beats —
+                          a permanent loop on this screen would be agitating. */}
+                      <View style={{ alignItems: 'center', justifyContent: 'center', height: 44 }}>
+                        <Pulse size={54} color={colors.success} />
+                        <Ionicons name={result.milestone.icon} size={30} color={colors.success} />
+                      </View>
+                      <T w="700" size={15} color={colors.success}>{t('journey.celebrate')}</T>
+                      <T size={13.5} color={colors.body} style={{ textAlign: 'center', lineHeight: 21 }}>
+                        {t(`journey.milestone.${result.milestone.at}`)}
+                      </T>
+                    </Card>
+                  </PopIn>
                 )}
 
                 {result.suggestion && (

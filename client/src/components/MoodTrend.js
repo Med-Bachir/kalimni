@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, I18nManager } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { T, Card, Chip } from './ui';
+import { GrowBars } from './motion';
 import { colors } from '../theme/colors';
 import { useI18n } from '../i18n';
 import { localizeDigits } from '../utils/format';
@@ -87,24 +88,19 @@ export function MoodRibbon({ entries, onPress }) {
         <Ionicons name={I18nManager.isRTL ? 'chevron-back' : 'chevron-forward'} size={16} color={colors.faint} />
       </View>
 
-      <View style={{ flexDirection: 'row', gap: 7 }}>
-        {series.map(({ date, entry }) => (
-          <View key={dayKey(date)} style={{ flex: 1, alignItems: 'center', gap: 6 }}>
-            <View style={{
-              width: '100%', height: RIBBON_HEIGHT, borderRadius: 8, backgroundColor: colors.track,
-              justifyContent: 'flex-end', overflow: 'hidden',
-            }}>
-              {entry && (
-                <View style={{
-                  height: Math.max(9, Math.round((entry.mood / SCALE_MAX) * RIBBON_HEIGHT)),
-                  borderRadius: 8, backgroundColor: bandColor(entry.mood, true),
-                }} />
-              )}
-            </View>
-            <T size={10} color={colors.faint}>{weekdayNarrow(date, lang)}</T>
-          </View>
-        ))}
-      </View>
+      <GrowBars
+        bars={series.map(({ date, entry }) => ({
+          key: dayKey(date),
+          date,
+          height: entry ? Math.max(9, Math.round((entry.mood / SCALE_MAX) * RIBBON_HEIGHT)) : 0,
+          color: entry ? bandColor(entry.mood, true) : 'transparent',
+        }))}
+        trackHeight={RIBBON_HEIGHT}
+        radius={8}
+        gap={7}
+        trackColor={colors.track}
+        labelFor={(bar) => <T size={10} color={colors.faint}>{weekdayNarrow(bar.date, lang)}</T>}
+      />
 
       <T size={12.5} color={colors.muted}>
         {t('trend.loggedDays', { n: localizeDigits(logged, lang), total: localizeDigits(7, lang) })}
@@ -177,24 +173,21 @@ export default function MoodTrend({ entries, title, audience = 'patient' }) {
         ))}
       </View>
 
-      <View style={{ flexDirection: 'row', gap: 4 }}>
-        {series.map(({ date, entry }) => (
-          <View key={dayKey(date)} style={{ flex: 1, alignItems: 'center', gap: 5 }}>
-            <View style={{
-              width: '100%', height: CHART_HEIGHT, borderRadius: 6, backgroundColor: colors.track,
-              justifyContent: 'flex-end', overflow: 'hidden',
-            }}>
-              {entry && (
-                <View style={{
-                  height: Math.max(8, Math.round((entry[metricKey] / SCALE_MAX) * CHART_HEIGHT)),
-                  borderRadius: 6, backgroundColor: bandColor(entry[metricKey], metric.higherIsBetter),
-                }} />
-              )}
-            </View>
-            <T size={9.5} color={colors.faint}>{weekdayNarrow(date, lang)}</T>
-          </View>
-        ))}
-      </View>
+      <GrowBars
+        bars={series.map(({ date, entry }) => ({
+          key: dayKey(date),
+          date,
+          height: entry
+            ? Math.max(8, Math.round((entry[metricKey] / SCALE_MAX) * CHART_HEIGHT))
+            : 0,
+          color: entry ? bandColor(entry[metricKey], metric.higherIsBetter) : 'transparent',
+        }))}
+        trackHeight={CHART_HEIGHT}
+        radius={6}
+        gap={4}
+        trackColor={colors.track}
+        labelFor={(bar) => <T size={9.5} color={colors.faint}>{weekdayNarrow(bar.date, lang)}</T>}
+      />
 
       {trend && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>

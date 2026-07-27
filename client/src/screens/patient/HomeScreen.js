@@ -7,6 +7,8 @@ import { Screen, T, Avatar, Card, SectionHeader } from '../../components/ui';
 import AppointmentCard from '../../components/AppointmentCard';
 import DailyCheckin from '../../components/DailyCheckin';
 import { MoodRibbon } from '../../components/MoodTrend';
+import TodayCard from '../../components/TodayCard';
+import { FadeIn } from '../../components/motion';
 import { checkinDue } from './HistoryScreen';
 import { colors } from '../../theme/colors';
 import { useI18n } from '../../i18n';
@@ -62,15 +64,19 @@ export default function HomeScreen({ navigation }) {
     <Screen>
       <ScrollView contentContainerStyle={{ padding: 22, gap: 20 }} showsVerticalScrollIndicator={false}>
         {/* Header */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <View style={{ gap: 2 }}>
-            <T size={14} color={colors.muted}>{t(greetingKey)}</T>
-            <T w="700" size={22}>{user.name}</T>
+        <FadeIn index={0}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ gap: 2 }}>
+              <T size={14} color={colors.muted}>{t(greetingKey)}</T>
+              <T w="700" size={22}>{user.name}</T>
+            </View>
+            <Avatar name={user.name} />
           </View>
-          <Avatar name={user.name} />
-        </View>
+        </FadeIn>
 
-        {/* Specialist CTA / matching state */}
+        {/* Specialist CTA / matching state. Wrapped as one unit so whichever
+            branch renders gets the same entrance. */}
+        <FadeIn index={1}>
         {specialist ? (
           <LinearGradient
             colors={[colors.primary, colors.primaryDark]}
@@ -112,36 +118,50 @@ export default function HomeScreen({ navigation }) {
             <T size={13.5} color={colors.muted} style={{ lineHeight: 22 }}>{t('home.noSpecialistBody')}</T>
           </Card>
         )}
+        </FadeIn>
 
         {/* Upcoming session */}
         {nextAppointment && (
-          <View style={{ gap: 10 }}>
-            <T w="700" size={17}>{t('appointments.upcoming')}</T>
-            <AppointmentCard appointment={nextAppointment} partnerName={specialist?.name} />
-          </View>
+          <FadeIn index={2}>
+            <View style={{ gap: 10 }}>
+              <T w="700" size={17}>{t('appointments.upcoming')}</T>
+              <AppointmentCard appointment={nextAppointment} partnerName={specialist?.name} />
+            </View>
+          </FadeIn>
         )}
 
         {/* "Last time you mentioned..." — the companion remembering out loud. */}
         {followUpData?.followUp && (
-          <Card style={{ padding: 18, gap: 8 }} onPress={() => navigation.navigate('Companion')}>
-            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-              <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.purple} />
-              <T w="700" size={16}>{t('companion.followUpTitle')}</T>
-            </View>
-            <T size={14} color={colors.body} style={{ lineHeight: 23 }}>
-              {followUpData.followUp}
-            </T>
-            <T w="600" size={14} color={colors.primary}>{t('companion.followUpCta')}</T>
-          </Card>
+          <FadeIn index={3}>
+            <Card style={{ padding: 18, gap: 8 }} onPress={() => navigation.navigate('Companion')}>
+              <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.purple} />
+                <T w="700" size={16}>{t('companion.followUpTitle')}</T>
+              </View>
+              <T size={14} color={colors.body} style={{ lineHeight: 23 }}>
+                {followUpData.followUp}
+              </T>
+              <T w="600" size={14} color={colors.primary}>{t('companion.followUpCta')}</T>
+            </Card>
+          </FadeIn>
         )}
 
         {/* Daily mood check-in (hides itself once today's entry exists), then
             the week it feeds — so what the patient gave comes straight back. */}
-        <DailyCheckin />
-        <MoodRibbon
-          entries={checkinData?.entries}
-          onPress={() => navigation.navigate('History')}
-        />
+        <FadeIn index={4}>
+          <DailyCheckin />
+        </FadeIn>
+        <FadeIn index={5}>
+          <MoodRibbon
+            entries={checkinData?.entries}
+            onPress={() => navigation.navigate('History')}
+          />
+        </FadeIn>
+
+        {/* One thing to come back for, different every day. */}
+        <FadeIn index={6}>
+          <TodayCard />
+        </FadeIn>
 
         {/* Biweekly progress check-in */}
         {showCheckin && (
@@ -156,7 +176,7 @@ export default function HomeScreen({ navigation }) {
         )}
 
         {/* Quick exercises */}
-        <View style={{ gap: 12 }}>
+        <FadeIn index={7} style={{ gap: 12 }}>
           <SectionHeader
             title={t('home.shortExercises')} actionLabel={t('common.viewAll')}
             onAction={() => navigation.navigate('Library')}
@@ -191,10 +211,10 @@ export default function HomeScreen({ navigation }) {
               <T size={12.5} color={colors.muted}>{t('home.journalingMeta')}</T>
             </TouchableOpacity>
           </View>
-        </View>
+        </FadeIn>
 
         {/* Articles */}
-        <View style={{ gap: 12 }}>
+        <FadeIn index={8} style={{ gap: 12 }}>
           <SectionHeader
             title={t('home.guidanceArticles')} actionLabel={t('common.viewAll')}
             onAction={() => navigation.navigate('Library')}
@@ -221,7 +241,7 @@ export default function HomeScreen({ navigation }) {
               </Card>
             ))}
           </View>
-        </View>
+        </FadeIn>
 
         {/* Crisis shortcut */}
         <TouchableOpacity

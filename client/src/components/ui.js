@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ActivityIndicator, I18nManager,
+  Animated, Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, avatarColors, severityColors } from '../theme/colors';
 import { initialsOf } from '../utils/format';
 import { useI18n } from '../i18n';
+import { tap as hapticTap } from '../utils/haptics';
 
 const FONT = {
   400: 'IBMPlexSansArabic_400Regular',
@@ -21,6 +23,36 @@ export function T({ w = '400', size = 14, color = colors.ink, style, children, .
     <Text style={[{ fontFamily: FONT[w] || FONT[400], fontSize: size, color }, style]} {...rest}>
       {children}
     </Text>
+  );
+}
+
+// Press target that scales down under the thumb and ticks the haptic motor,
+// instead of TouchableOpacity's opacity dip (which reads as "disabled" rather
+// than "pressed"). Card and Button build on this, so most of the app gets
+// press feedback for free.
+//
+// Lives here rather than in motion.js because that module imports from this
+// one; the dependency has to stay one-directional.
+export function PressableScale({
+  onPress, children, style, disabled, scaleTo = 0.97, haptic = true, ...rest
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const spring = (toValue) =>
+    Animated.spring(scale, { toValue, speed: 45, bounciness: 5, useNativeDriver: true }).start();
+
+  return (
+    <Pressable
+      onPressIn={() => spring(scaleTo)}
+      onPressOut={() => spring(1)}
+      onPress={(e) => {
+        if (haptic) hapticTap();
+        onPress?.(e);
+      }}
+      disabled={disabled}
+      {...rest}
+    >
+      <Animated.View style={[{ transform: [{ scale }] }, style]}>{children}</Animated.View>
+    </Pressable>
   );
 }
 
@@ -40,8 +72,7 @@ export function Button({ title, onPress, variant = 'primary', loading, disabled,
     danger: { bg: colors.card, fg: colors.dangerDark, border: colors.dangerBorder },
   }[variant];
   return (
-    <TouchableOpacity
-      activeOpacity={0.8}
+    <PressableScale
       onPress={onPress}
       disabled={disabled || loading}
       style={[
@@ -59,7 +90,7 @@ export function Button({ title, onPress, variant = 'primary', loading, disabled,
           <T w="600" size={17} color={palette.fg}>{title}</T>
         </View>
       )}
-    </TouchableOpacity>
+    </PressableScale>
   );
 }
 
@@ -149,11 +180,7 @@ export function CountBadge({ count }) {
 export function Card({ children, style, onPress }) {
   const body = <View style={[styles.card, style]}>{children}</View>;
   if (!onPress) return body;
-  return (
-    <TouchableOpacity activeOpacity={0.75} onPress={onPress}>
-      {body}
-    </TouchableOpacity>
-  );
+  return <PressableScale onPress={onPress}>{body}</PressableScale>;
 }
 
 export function SectionHeader({ title, actionLabel, onAction }) {

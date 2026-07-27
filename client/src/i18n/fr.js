@@ -279,6 +279,11 @@ export default {
     empty: 'Faites le point du jour depuis l’accueil, votre évolution apparaîtra ici.',
     notesTitle: 'De votre journal',
   },
+  today: {
+    label: "Suggestion du jour",
+    readIt: 'Lire maintenant',
+    tryIt: 'Essayer maintenant',
+  },
   journey: {
     title: 'Votre parcours',
     toNext: 'Encore {n} avant « {name} »',
