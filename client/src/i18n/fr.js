@@ -264,6 +264,7 @@ export default {
     weekTitle: 'Votre humeur cette semaine',
     loggedDays: '{n} jours sur {total} enregistrés — chaque point complète le tableau.',
     title: 'Votre quotidien',
+    titlePatient: 'Le quotidien du patient',
     average: 'Moyenne {value}/{max}',
     metric: {
       mood: 'Humeur',
@@ -273,6 +274,7 @@ export default {
     },
     better: 'Cette semaine est meilleure que la précédente 👏',
     worse: 'Cette semaine est plus difficile que la précédente — parlez-en à votre spécialiste.',
+    worseNeutral: 'Cette semaine est plus difficile que la précédente.',
     same: 'Stable par rapport à la semaine dernière.',
     empty: 'Faites le point du jour depuis l’accueil, votre évolution apparaîtra ici.',
     notesTitle: 'De votre journal',

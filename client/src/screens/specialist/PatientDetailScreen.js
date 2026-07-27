@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Screen, T, Card, Avatar, Badge, Button, BackButton, LevelBadge, LoadingView } from '../../components/ui';
 import AppointmentCard from '../../components/AppointmentCard';
 import ProposeSessionModal from '../../components/ProposeSessionModal';
+import MoodTrend from '../../components/MoodTrend';
 import { colors } from '../../theme/colors';
 import { useI18n } from '../../i18n';
 import { api } from '../../api/client';
@@ -154,7 +155,16 @@ export default function PatientDetailScreen({ navigation, route }) {
               <T size={13.5} color={colors.muted}>{t('companion.specNoCheckins')}</T>
             </Card>
           ) : (
-            checkinData.entries.slice(0, 5).map((e) => (
+            <>
+              {/* Two weeks of shape first — scanning five rows of numbers
+                  before a session doesn't show a pattern. Exact values and the
+                  patient's own notes stay below it. */}
+              <MoodTrend
+                entries={checkinData.entries}
+                title={t('trend.titlePatient')}
+                audience="specialist"
+              />
+              {checkinData.entries.slice(0, 5).map((e) => (
               <Card key={e.id} style={{ padding: 14, gap: 8 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                   <T size={12} color={colors.faint}>{formatDate(e.createdAt, lang)}</T>
@@ -170,7 +180,8 @@ export default function PatientDetailScreen({ navigation, route }) {
                   <T size={13} color={colors.body} style={{ lineHeight: 21 }}>"{e.note}"</T>
                 ) : null}
               </Card>
-            ))
+              ))}
+            </>
           )}
         </View>
 

@@ -84,7 +84,9 @@ router.get('/patients/:id/checkins', async (req, res) => {
   const patient = await findAssignedPatient(req, res);
   if (!patient) return;
   res.json({
-    entries: await repos.journalEntriesOf(patient.id, 30),
+    // 60 to match the patient's own endpoint: the trend chart compares two
+    // 14-day windows and a patient may log more than once a day.
+    entries: await repos.journalEntriesOf(patient.id, 60),
     aiEnabled: patient.settings?.aiCompanion !== false,
   });
 });

@@ -114,9 +114,13 @@ export function MoodRibbon({ entries, onPress }) {
 }
 
 /**
- * Full two-week chart with a metric switcher, for the progress screen.
+ * Full two-week chart with a metric switcher.
+ *
+ * `audience` swaps the copy: the patient's version nudges them to raise a hard
+ * week with their specialist, which reads wrong when the specialist is the one
+ * looking at it. `title` lets the caller name the card for whoever is reading.
  */
-export default function MoodTrend({ entries }) {
+export default function MoodTrend({ entries, title, audience = 'patient' }) {
   const { t, lang } = useI18n();
   const [metricKey, setMetricKey] = useState('mood');
   const metric = METRICS.find((m) => m.key === metricKey);
@@ -143,13 +147,17 @@ export default function MoodTrend({ entries }) {
   const trend =
     delta === null ? null
     : delta >= 0.5 ? { icon: 'trending-up', color: colors.success, text: t('trend.better') }
-    : delta <= -0.5 ? { icon: 'trending-down', color: colors.dangerDark, text: t('trend.worse') }
+    : delta <= -0.5 ? {
+        icon: 'trending-down',
+        color: colors.dangerDark,
+        text: t(audience === 'specialist' ? 'trend.worseNeutral' : 'trend.worse'),
+      }
     : { icon: 'remove', color: colors.muted, text: t('trend.same') };
 
   return (
     <Card style={{ padding: 16, gap: 14 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <T w="700" size={15}>{t('trend.title')}</T>
+        <T w="700" size={15}>{title || t('trend.title')}</T>
         <T size={12} color={colors.muted}>
           {t('trend.average', {
             value: localizeDigits(average.toFixed(1), lang),
