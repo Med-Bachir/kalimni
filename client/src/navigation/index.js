@@ -25,6 +25,10 @@ import HomeScreen from '../screens/patient/HomeScreen';
 import LibraryScreen from '../screens/patient/LibraryScreen';
 import ArticleScreen from '../screens/patient/ArticleScreen';
 import BreathingScreen from '../screens/patient/BreathingScreen';
+import CalmScreen from '../screens/patient/CalmScreen';
+import GroundingScreen from '../screens/patient/GroundingScreen';
+import BubblesScreen from '../screens/patient/BubblesScreen';
+import ReframeScreen from '../screens/patient/ReframeScreen';
 import PatientChatTab from '../screens/patient/PatientChatTab';
 import AICompanionScreen from '../screens/patient/AICompanionScreen';
 import ProfileScreen from '../screens/patient/ProfileScreen';
@@ -191,6 +195,13 @@ export default function RootNavigator() {
       <Stack.Screen name="Result" component={ResultScreen} />
       <Stack.Screen name="Article" component={ArticleScreen} />
       <Stack.Screen name="Breathing" component={BreathingScreen} options={{ presentation: 'fullScreenModal' }} />
+      {/* Calm Corner. The hub is a normal push so back returns to Home; the
+          three exercises are full-screen so nothing else competes for
+          attention while someone is using them. */}
+      <Stack.Screen name="Calm" component={CalmScreen} />
+      <Stack.Screen name="Grounding" component={GroundingScreen} options={{ presentation: 'fullScreenModal' }} />
+      <Stack.Screen name="Bubbles" component={BubblesScreen} options={{ presentation: 'fullScreenModal' }} />
+      <Stack.Screen name="Reframe" component={ReframeScreen} options={{ presentation: 'fullScreenModal' }} />
       <Stack.Screen name="Call" component={CallScreen} options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
       <Stack.Screen name="IncomingCall" component={IncomingCallScreen} options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
       <Stack.Screen name="PersonalData" component={PersonalDataScreen} />

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
@@ -15,9 +15,11 @@ import {
 import { colors } from './src/theme/colors';
 import { useSettings } from './src/store/settings';
 import { useAuth } from './src/store/auth';
+import { useCalm } from './src/store/calm';
 import { ensureLayoutDirection } from './src/utils/rtl';
 import RootNavigator from './src/navigation';
 import { navigationRef } from './src/navigation/navigationRef';
+import SplashOverlay from './src/components/SplashOverlay';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,6 +45,7 @@ export default function App() {
     IBMPlexSansArabic_700Bold,
   });
   const [ready, setReady] = useState(false);
+  const [splashDone, setSplashDone] = useState(false);
   const themeMode = useSettings((s) => s.themeMode);
 
   useEffect(() => {
@@ -51,17 +54,20 @@ export default function App() {
       // Applying a direction change reloads the app in dev; the new instance
       // will pass straight through this check.
       ensureLayoutDirection(lang);
+      // Calm Corner state is local-only and small; hydrating it here means the
+      // garden is already correct the first time it renders, with no flash of
+      // an empty plot.
+      await useCalm.getState().hydrate();
       await useAuth.getState().boot();
       setReady(true);
     })();
   }, []);
 
+  // Boot gate. Deliberately a flat field in the same colour the splash starts
+  // on — no spinner. Two loading states back to back (spinner, then splash)
+  // reads as a stutter; one continuous surface reads as one launch.
   if (!fontsLoaded || !ready) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg }}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
+    return <View style={{ flex: 1, backgroundColor: colors.bgSoft }} />;
   }
 
   return (
@@ -72,6 +78,10 @@ export default function App() {
         <NavigationContainer ref={navigationRef} theme={navTheme()}>
           <StatusBar style={themeMode === 'dark' ? 'light' : 'dark'} backgroundColor={colors.bg} />
           <RootNavigator />
+          {/* Sits above the navigator and removes itself. Mounting it here
+              rather than as a route means it covers whichever screen the app
+              restored to, including a deep link or a resumed call. */}
+          {!splashDone && <SplashOverlay onFinish={() => setSplashDone(true)} />}
         </NavigationContainer>
       </SafeAreaProvider>
     </QueryClientProvider>

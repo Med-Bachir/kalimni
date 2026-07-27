@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Screen, T, Button } from '../../components/ui';
 import { colors } from '../../theme/colors';
 import { useI18n } from '../../i18n';
+import { useCalm } from '../../store/calm';
 import { localizeDigits } from '../../utils/format';
 
 const PHASES = [
@@ -21,8 +22,19 @@ export default function BreathingScreen({ navigation }) {
   const [phaseIndex, setPhaseIndex] = useState(0);
   const [countdown, setCountdown] = useState(PHASES[0].seconds);
   const scale = useRef(new Animated.Value(1)).current;
+  const addGrowth = useCalm((s) => s.addGrowth);
+  const rewarded = useRef(false);
 
   const phase = PHASES[phaseIndex];
+
+  // A finished round plants one thing in the garden. Guarded so a re-render
+  // (or the theme remounting the tree) cannot credit the same round twice;
+  // `start` clears it so a second round does count.
+  useEffect(() => {
+    if (state !== 'done' || rewarded.current) return;
+    rewarded.current = true;
+    addGrowth(1);
+  }, [state]);
 
   // Drive the circle: grow on inhale, hold, shrink on exhale.
   useEffect(() => {
@@ -57,6 +69,7 @@ export default function BreathingScreen({ navigation }) {
   }, [state, phaseIndex, cycle]);
 
   const start = () => {
+    rewarded.current = false;
     setCycle(0);
     setPhaseIndex(0);
     setCountdown(PHASES[0].seconds);

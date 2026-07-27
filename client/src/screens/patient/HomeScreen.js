@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ScrollView, TouchableOpacity } from 'react-native';
+import { View, ScrollView, TouchableOpacity, I18nManager } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
@@ -8,17 +8,22 @@ import AppointmentCard from '../../components/AppointmentCard';
 import DailyCheckin from '../../components/DailyCheckin';
 import { MoodRibbon } from '../../components/MoodTrend';
 import TodayCard from '../../components/TodayCard';
+import Garden from '../../components/Garden';
 import { FadeIn } from '../../components/motion';
 import { checkinDue } from './HistoryScreen';
 import { colors } from '../../theme/colors';
 import { useI18n } from '../../i18n';
 import { useAuth } from '../../store/auth';
+import { useCalm } from '../../store/calm';
 import { api } from '../../api/client';
+import { localizeDigits } from '../../utils/format';
 import { categoryIcon, GRADIENT_ICON_COLOR } from '../../utils/contentVisual';
 
 export default function HomeScreen({ navigation }) {
-  const { t, L } = useI18n();
+  const { t, L, lang } = useI18n();
   const user = useAuth((s) => s.user);
+  const growth = useCalm((s) => s.growth);
+  const sky = useCalm((s) => s.sky);
 
   const { data: specialistData } = useQuery({
     queryKey: ['mySpecialist'],
@@ -59,6 +64,8 @@ export default function HomeScreen({ navigation }) {
   const greetingKey = new Date().getHours() < 12 ? 'home.greetingMorning' : 'home.greetingEvening';
   const needsIntake = !user.intakeCompletedAt && user.intakeSkipped;
   const showCheckin = checkinDue(historyData?.results);
+  // Everything the patient has done, server-side and on-device, in one number.
+  const gardenPoints = (checkinData?.total ?? (checkinData?.entries || []).length) + growth;
 
   return (
     <Screen>
@@ -158,8 +165,26 @@ export default function HomeScreen({ navigation }) {
           />
         </FadeIn>
 
-        {/* One thing to come back for, different every day. */}
+        {/* Calm Corner. The garden preview is the entry point on purpose — a
+            row of text saying "exercises" gets tapped far less than a picture
+            of something that is visibly yours and visibly growing. */}
         <FadeIn index={6}>
+          <Card style={{ padding: 12, gap: 12 }} onPress={() => navigation.navigate('Calm')}>
+            <Garden points={gardenPoints} skyId={sky} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 4, paddingBottom: 2 }}>
+              <View style={{ flex: 1, gap: 3 }}>
+                <T w="700" size={16}>{t('calm.title')}</T>
+                <T size={12.5} color={colors.muted} style={{ lineHeight: 20 }}>
+                  {t('calm.homeBody', { n: localizeDigits(gardenPoints, lang) })}
+                </T>
+              </View>
+              <Ionicons name={I18nManager.isRTL ? 'chevron-back' : 'chevron-forward'} size={17} color={colors.faint} />
+            </View>
+          </Card>
+        </FadeIn>
+
+        {/* One thing to come back for, different every day. */}
+        <FadeIn index={7}>
           <TodayCard />
         </FadeIn>
 
@@ -176,7 +201,7 @@ export default function HomeScreen({ navigation }) {
         )}
 
         {/* Quick exercises */}
-        <FadeIn index={7} style={{ gap: 12 }}>
+        <FadeIn index={8} style={{ gap: 12 }}>
           <SectionHeader
             title={t('home.shortExercises')} actionLabel={t('common.viewAll')}
             onAction={() => navigation.navigate('Library')}
@@ -214,7 +239,7 @@ export default function HomeScreen({ navigation }) {
         </FadeIn>
 
         {/* Articles */}
-        <FadeIn index={8} style={{ gap: 12 }}>
+        <FadeIn index={9} style={{ gap: 12 }}>
           <SectionHeader
             title={t('home.guidanceArticles')} actionLabel={t('common.viewAll')}
             onAction={() => navigation.navigate('Library')}

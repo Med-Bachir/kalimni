@@ -10,6 +10,7 @@ import { api } from '../api/client';
 import { localizeDigits } from '../utils/format';
 import { isMilestone, journeyFor } from '../utils/milestones';
 import { PopIn, Pulse } from './motion';
+import MoodSky from './MoodSky';
 import { tap as hapticTap, success as hapticSuccess, celebrate as hapticCelebrate } from '../utils/haptics';
 
 // Daily check-in: mood/stress/energy/sleep on a 1-5 tap scale + optional
@@ -157,7 +158,17 @@ export default function DailyCheckin() {
               </View>
             ) : (
               <>
-                <Scale label={t('companion.mood')} lang={lang} value={values.mood} onChange={(mood) => setValues({ ...values, mood })} />
+                {/* Mood is asked as weather, the other three stay numeric. Mood
+                    is the one people freeze on — "how do you feel, 1 to 5" is a
+                    question with an implied right answer — and it is also the
+                    one the trend chart leads with. Stress, energy and sleep are
+                    concrete enough that a number is genuinely easier. The value
+                    sent to the server is 1-5 either way. */}
+                <MoodSky
+                  label={t('companion.mood')}
+                  value={values.mood}
+                  onChange={(mood) => setValues({ ...values, mood })}
+                />
                 <Scale label={t('companion.stress')} lang={lang} value={values.stress} onChange={(stress) => setValues({ ...values, stress })} />
                 <Scale label={t('companion.energy')} lang={lang} value={values.energy} onChange={(energy) => setValues({ ...values, energy })} />
                 <Scale label={t('companion.sleepQ')} lang={lang} value={values.sleep} onChange={(sleep) => setValues({ ...values, sleep })} />
