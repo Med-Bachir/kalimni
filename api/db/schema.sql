@@ -202,11 +202,14 @@ CREATE INDEX ai_messages_conversation_idx ON ai_messages (conversation_id, creat
 
 -- Rolling conversation memory: a summary replaces old messages in the prompt,
 -- so the LLM never receives the full history.
+-- follow_up: short question re-opening the last conversation on the home
+-- screen. Kept in sync with db/migrations/001_ai_follow_up.sql for live DBs.
 CREATE TABLE ai_state (
   conversation_id        text PRIMARY KEY REFERENCES ai_conversations(id) ON DELETE CASCADE,
   summary                text NOT NULL DEFAULT '',
   topics                 jsonb NOT NULL DEFAULT '[]',
   emotion                text,
+  follow_up              text,
   messages_since_summary integer NOT NULL DEFAULT 0,
   updated_at             timestamptz NOT NULL DEFAULT now()
 );

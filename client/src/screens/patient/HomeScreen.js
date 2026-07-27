@@ -43,6 +43,12 @@ export default function HomeScreen({ navigation }) {
     queryKey: ['checkins'],
     queryFn: () => api('/ai/checkins'),
   });
+  // Open loop from the last companion conversation. The server decides whether
+  // there is anything safe to say — the client only renders what it gets.
+  const { data: followUpData } = useQuery({
+    queryKey: ['aiFollowUp'],
+    queryFn: () => api('/ai/followup'),
+  });
 
   const specialist = specialistData?.specialist;
   const nextAppointment = (apptData?.appointments || [])[0];
@@ -113,6 +119,20 @@ export default function HomeScreen({ navigation }) {
             <T w="700" size={17}>{t('appointments.upcoming')}</T>
             <AppointmentCard appointment={nextAppointment} partnerName={specialist?.name} />
           </View>
+        )}
+
+        {/* "Last time you mentioned..." — the companion remembering out loud. */}
+        {followUpData?.followUp && (
+          <Card style={{ padding: 18, gap: 8 }} onPress={() => navigation.navigate('Companion')}>
+            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+              <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.purple} />
+              <T w="700" size={16}>{t('companion.followUpTitle')}</T>
+            </View>
+            <T size={14} color={colors.body} style={{ lineHeight: 23 }}>
+              {followUpData.followUp}
+            </T>
+            <T w="600" size={14} color={colors.primary}>{t('companion.followUpCta')}</T>
+          </Card>
         )}
 
         {/* Daily mood check-in (hides itself once today's entry exists), then

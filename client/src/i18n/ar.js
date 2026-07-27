@@ -408,6 +408,8 @@ export default {
     starter1: 'أشعر بالقلق اليوم',
     starter2: 'ساعدني على النوم بشكل أفضل',
     starter3: 'أريد تمرين تنفس',
+    followUpTitle: 'نكمل حديثنا؟',
+    followUpCta: 'تحدّث مع الرفيق',
     checkinCard: 'كيف تشعر اليوم؟',
     checkinCardBody: 'تسجيل سريع لمزاجك وتوترك ونومك — أقل من دقيقة.',
     checkinStart: 'سجّل يومك',

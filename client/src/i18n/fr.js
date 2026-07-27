@@ -408,6 +408,8 @@ export default {
     starter1: "Je me sens anxieux aujourd'hui",
     starter2: 'Aide-moi à mieux dormir',
     starter3: 'Je veux un exercice de respiration',
+    followUpTitle: 'On reprend ?',
+    followUpCta: 'Parler au compagnon',
     checkinCard: "Comment vous sentez-vous aujourd'hui ?",
     checkinCardBody: 'Un point rapide sur votre humeur, stress et sommeil — moins d’une minute.',
     checkinStart: 'Faire le point',

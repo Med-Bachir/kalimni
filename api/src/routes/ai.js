@@ -85,6 +85,13 @@ router.post('/checkin', async (req, res) => {
   res.status(201).json({ entry, total, feedback: companion.checkinFeedback(req.user, entry) });
 });
 
+// GET /api/ai/followup — the open-loop question shown on the home screen.
+// All the gating lives in companionService.followUpFor (see the safety notes
+// there); null simply means "say nothing today".
+router.get('/followup', async (req, res) => {
+  res.json({ followUp: await companion.followUpFor(req.user) });
+});
+
 // GET /api/ai/recommendations — content picked for THIS patient's case
 // (questionnaire results + recent check-ins + companion emotion state).
 router.get('/recommendations', async (req, res) => {

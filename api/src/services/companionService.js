@@ -189,24 +189,43 @@ async function refreshSummaryAsync(conversationId, user) {
       .map((m) => `${m.role}: ${m.text}`)
       .join('\n');
 
+    const langName = user?.language === 'fr' ? 'French' : 'Arabic';
     const parsed = await llm.chatJson(
       [
         {
           role: 'system',
-          content:
-            'You maintain the rolling memory of a supportive-companion chat. Given the previous summary and the latest exchanges, return ONLY JSON: {"summary":"<max 120 words, English, factual: situation, recurring themes, what helped>","topics":["<up to 5 short tags>"],"emotion":"<user\'s current dominant emotion, one word>"}. No advice, no judgement, no quotes from the user.',
+          content: `You maintain the rolling memory of a supportive-companion chat in a mental-health app.
+
+Return ONLY JSON:
+{"summary":"<max 120 words, English, factual: situation, recurring themes, what helped>",
+ "topics":["<up to 5 short tags>"],
+ "emotion":"<user's current dominant emotion, one word>",
+ "followUp":"<see rules below>"}
+
+RULES FOR followUp — this string is displayed on the patient's HOME SCREEN, where
+other people may read it over their shoulder:
+- One short, warm question in ${langName} (max 12 words) re-opening something
+  ordinary they mentioned: an event, a plan, a step they tried.
+- NEVER reference self-harm, crisis, diagnosis, symptoms, medication, therapy
+  content, or anything private they would not want visible on a home screen.
+- Return "" when the conversation holds nothing ordinary and safe to re-open.
+
+No advice, no judgement, no quotes from the user.`,
         },
         {
           role: 'user',
           content: `PREVIOUS SUMMARY: ${state?.summary || '(none)'}\n\nLATEST EXCHANGES:\n${transcript.slice(0, 6000)}`,
         },
       ],
-      { maxTokens: 400, temperature: 0, tag: 'companion-sum' }
+      { maxTokens: 500, temperature: 0, tag: 'companion-sum' }
     );
     await repos.upsertAiState(conversationId, {
       summary: String(parsed.summary || '').slice(0, 1500),
       topics: Array.isArray(parsed.topics) ? parsed.topics.slice(0, 5) : [],
       emotion: parsed.emotion ? String(parsed.emotion).slice(0, 30) : null,
+      // Always a string (never null), so an empty answer clears a stale
+      // follow-up instead of COALESCE keeping the previous one forever.
+      followUp: String(parsed.followUp || '').trim().slice(0, 200),
       messagesSinceSummary: 0,
     });
   } catch (err) {
@@ -295,6 +314,39 @@ async function handleMessage(user, rawText) {
   return { reply, userMessage, status: 'active', emotion };
 }
 
+// --- home-screen open loop ----------------------------------------------------------
+// The one place the companion speaks without being asked, on a screen someone
+// else may read over the patient's shoulder. Every gate below resolves to
+// "say nothing" when uncertain. `now` is injectable so the time-based gates
+// are testable.
+const FOLLOWUP_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+
+async function followUpFor(user, now = Date.now()) {
+  // Specialist switched the companion off for this patient.
+  if (user?.settings?.aiCompanion === false) return null;
+
+  // Read-only: a home-screen load must not create a thread.
+  const conversation = await repos.getAiConversation(user.id);
+  if (!conversation || conversation.status === 'crisis_hold') return null;
+
+  // Never chirp a friendly question at someone with an unreviewed safety alert.
+  if (await repos.hasOpenAiAlert(user.id)) return null;
+
+  const state = await repos.getAiState(conversation.id);
+  const followUp = String(state?.followUp || '').trim();
+  if (!followUp) return null;
+
+  const lastAt = await repos.lastAiMessageAt(conversation.id);
+  if (!lastAt) return null;
+  const last = new Date(lastAt);
+  // A months-old thread isn't an open loop, and neither is one already picked
+  // up today.
+  if (now - last.getTime() > FOLLOWUP_MAX_AGE_MS) return null;
+  if (last.toDateString() === new Date(now).toDateString()) return null;
+
+  return followUp;
+}
+
 // --- daily check-in (rule-based, no LLM cost) ---------------------------------------
 const CHECKIN_REPLY = {
   low_mood: {
@@ -328,4 +380,4 @@ function checkinFeedback(user, { mood, stress, energy, sleep }) {
   };
 }
 
-module.exports = { handleMessage, checkinFeedback, EXERCISES, CRISIS_REPLY };
+module.exports = { handleMessage, checkinFeedback, followUpFor, EXERCISES, CRISIS_REPLY };

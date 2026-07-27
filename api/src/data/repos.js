@@ -464,6 +464,17 @@ async function getOrCreateAiConversation(patientId) {
   return one('SELECT * FROM ai_conversations WHERE patient_id = $1', [patientId]);
 }
 
+// Read-only counterpart: the home screen asks about the thread on every load
+// and must not create one for a patient who has never opened the companion.
+const getAiConversation = (patientId) =>
+  one('SELECT * FROM ai_conversations WHERE patient_id = $1', [patientId]);
+
+// Newest message timestamp, for staleness gating (null when the thread is empty).
+const lastAiMessageAt = async (conversationId) =>
+  (await one('SELECT max(created_at) AS at FROM ai_messages WHERE conversation_id = $1', [
+    conversationId,
+  ]))?.at || null;
+
 const setAiConversationStatus = (id, status) =>
   one('UPDATE ai_conversations SET status = $2 WHERE id = $1 RETURNING *', [id, status]);
 
@@ -488,20 +499,24 @@ const getAiState = (conversationId) =>
   one('SELECT * FROM ai_state WHERE conversation_id = $1', [conversationId]);
 
 // Partial upsert: null/undefined fields keep their stored value.
-const upsertAiState = (conversationId, { summary, topics, emotion, messagesSinceSummary } = {}) =>
+const upsertAiState = (
+  conversationId,
+  { summary, topics, emotion, followUp, messagesSinceSummary } = {}
+) =>
   one(
-    `INSERT INTO ai_state (conversation_id, summary, topics, emotion, messages_since_summary)
-     VALUES ($1, COALESCE($2, ''), COALESCE($3::jsonb, '[]'::jsonb), $4, COALESCE($5, 0))
+    `INSERT INTO ai_state (conversation_id, summary, topics, emotion, follow_up, messages_since_summary)
+     VALUES ($1, COALESCE($2, ''), COALESCE($3::jsonb, '[]'::jsonb), $4, $5, COALESCE($6, 0))
      ON CONFLICT (conversation_id) DO UPDATE SET
        summary                = COALESCE($2, ai_state.summary),
        topics                 = COALESCE($3::jsonb, ai_state.topics),
        emotion                = COALESCE($4, ai_state.emotion),
-       messages_since_summary = COALESCE($5, ai_state.messages_since_summary),
+       follow_up              = COALESCE($5, ai_state.follow_up),
+       messages_since_summary = COALESCE($6, ai_state.messages_since_summary),
        updated_at             = now()
      RETURNING *`,
     [
       conversationId, summary ?? null, topics === undefined ? null : j(topics),
-      emotion ?? null, messagesSinceSummary ?? null,
+      emotion ?? null, followUp ?? null, messagesSinceSummary ?? null,
     ]
   );
 
@@ -592,7 +607,8 @@ module.exports = {
   // push tokens
   savePushToken, deletePushToken, pushTargetsOf,
   // AI companion
-  getOrCreateAiConversation, setAiConversationStatus, insertAiMessage, aiMessagesOf,
+  getOrCreateAiConversation, getAiConversation, lastAiMessageAt,
+  setAiConversationStatus, insertAiMessage, aiMessagesOf,
   getAiState, upsertAiState, bumpAiMessageCount, deleteAiThread, hasOpenAiAlert,
   // journal / daily check-in
   insertJournalEntry, journalEntriesOf, journalEntryCountOf,
