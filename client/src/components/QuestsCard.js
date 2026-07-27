@@ -5,7 +5,7 @@ import { T, Card } from './ui';
 import { colors } from '../theme/colors';
 import { useI18n } from '../i18n';
 import { useCalm } from '../store/calm';
-import { questsFor } from '../utils/calmData';
+import { questsFor, dayKey } from '../utils/calmData';
 import { tap as hapticTap, success as hapticSuccess } from '../utils/haptics';
 
 // Three small kindnesses, offered once a day.
@@ -19,12 +19,14 @@ import { tap as hapticTap, success as hapticSuccess } from '../utils/haptics';
 // The counter shown is "n of 3 today", never a percentage and never a streak.
 
 export default function QuestsCard({ compact }) {
-  const { t, lang } = useI18n();
-  const done = useCalm((s) => s.questLog);
+  const { t } = useI18n();
+  // Read the log through the hook, not getState() — the subscription is what
+  // re-renders the row the instant a quest is ticked.
+  const questLog = useCalm((s) => s.questLog);
   const toggleQuest = useCalm((s) => s.toggleQuest);
 
   const quests = questsFor();
-  const today = useCalm.getState().todayQuests();
+  const today = questLog[dayKey()] || [];
   const completed = quests.filter((q) => today.includes(q.id)).length;
 
   const onToggle = (id) => {
