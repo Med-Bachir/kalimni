@@ -77,6 +77,9 @@ export default function CalmScreen({ navigation }) {
             points={points}
             skyId={sky}
             spiritId={spiritId}
+            // The same check-in feed this screen already loads, so the animal
+            // in the garden keeps pace with the patient like the roaming one.
+            spiritEnergy={Number(checkinData?.entries?.[0]?.mood) || 3}
             onSpiritPress={() => { hapticTap(); navigation.navigate('SpiritHome'); }}
           />
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>

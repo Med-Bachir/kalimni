@@ -9,6 +9,7 @@ import { useSettings } from '../store/settings';
 import { useAuth } from '../store/auth';
 import { useI18n } from '../i18n';
 import { navigationRef } from '../navigation/navigationRef';
+import { useSpiritEnergy } from '../hooks/useSpiritEnergy';
 import { tap as hapticTap } from '../utils/haptics';
 import { voice as soundVoice } from '../utils/sound';
 
@@ -35,23 +36,35 @@ import { voice as soundVoice } from '../utils/sound';
 
 // Screens the animal must not appear on.
 //
-// Crisis/Call/IncomingCall are non-negotiable — someone reading an emergency
-// number does not need a cartoon fox walking across it. The exercises are
-// full-screen and focus-dependent, and the spirit screens already show the
-// animal at full size, so a second copy would be nonsense.
+// This list was much longer and that was a mistake: hiding on every exercise,
+// the intake flow and the quiz meant the companion was absent for most of the
+// time anyone actually spends in the app, which makes it a novelty rather than
+// company. The default is now **visible**, and a screen has to earn its way
+// onto this list.
+//
+// Three reasons qualify, and nothing else does:
+//
+//   safety      Crisis and the call screens. Someone reading an emergency
+//               number, or on a video call with their specialist, must not
+//               have a cartoon animal walking across it. Non-negotiable.
+//   redundancy  The spirit's own screens already show it at full size; a
+//               second copy wandering past would be nonsense.
+//   collision   Bubbles fills the whole screen with rising tap targets from
+//               the bottom edge — exactly where the companion walks.
+//
+// Notably NOT on the list any more: Breathing, Grounding and Reframe. A
+// companion quietly breathing beside you during a breathing exercise is the
+// best place it appears, not the worst.
 const HIDE_ON = new Set([
+  // safety
   'Crisis',
   'Call',
   'IncomingCall',
-  'Breathing',
-  'Grounding',
-  'Bubbles',
-  'Reframe',
+  // redundancy
   'SpiritQuiz',
   'SpiritHome',
-  'Questionnaire',
-  'Disclaimer',
-  'Result',
+  // collision
+  'Bubbles',
 ]);
 
 const SIZE = 66;
@@ -63,6 +76,10 @@ export default function FloatingSpirit() {
   const growth = useCalm((s) => s.growth);
   const enabled = useSettings((s) => s.companion);
   const user = useAuth((s) => s.user);
+  const energy = useSpiritEnergy(!!id && user?.role === 'patient');
+  // No check-in yet is neither a good nor a bad day — sit in the middle.
+  const vigour = energy ?? 3;
+  const pace = 1 + (3 - vigour) * 0.14;
 
   const [route, setRoute] = useState(null);
   const [taps, setTaps] = useState(0);
@@ -84,13 +101,27 @@ export default function FloatingSpirit() {
   // navigator settles depending on how fast the device is. A throw in this
   // effect would take down the whole app for a decorative animal.
   useEffect(() => {
+    let cancelled = false;
+    let retry;
+
     const sync = () => {
+      if (cancelled) return;
       try {
-        setRoute(navigationRef.isReady() ? navigationRef.getCurrentRoute()?.name ?? null : null);
+        // Not ready yet? Try again shortly instead of giving up. Without this
+        // retry the animal could stay hidden for the whole session: the first
+        // read happens the instant the splash clears, the 'state' event only
+        // fires on *changes*, and a user who lands on Home and stays there
+        // never produces one.
+        if (!navigationRef.isReady()) {
+          retry = setTimeout(sync, 150);
+          return;
+        }
+        setRoute(navigationRef.getCurrentRoute()?.name ?? null);
       } catch {
         setRoute(null);
       }
     };
+
     sync();
     let unsubscribe;
     try {
@@ -100,6 +131,8 @@ export default function FloatingSpirit() {
       // screen it cannot identify. Failing closed is the right way round.
     }
     return () => {
+      cancelled = true;
+      clearTimeout(retry);
       if (typeof unsubscribe === 'function') unsubscribe();
     };
   }, []);
@@ -128,7 +161,11 @@ export default function FloatingSpirit() {
 
     const step = () => {
       const margin = 14;
-      const target = margin + Math.random() * Math.max(1, width - SIZE - margin * 2);
+      // On a low-mood day it does not range as far — it stays nearer to where
+      // it already was, which reads as settling in beside someone rather than
+      // patrolling. Same principle as the slower breath: match, do not perform.
+      const span = Math.max(1, width - SIZE - margin * 2) * (vigour <= 2 ? 0.55 : 1);
+      const target = margin + Math.random() * span;
       const distance = Math.abs(target - posRef.current);
       if (distance > 4) setFlip(target < posRef.current);
       posRef.current = target;
@@ -136,12 +173,12 @@ export default function FloatingSpirit() {
       Animated.timing(x, {
         toValue: target,
         // Pace scales with distance, so it never sprints across the screen.
-        duration: 2600 + distance * 14,
+        duration: (2600 + distance * 14) * pace,
         easing: Easing.inOut(Easing.quad),
         useNativeDriver: true,
       }).start(() => {
         if (cancelled) return;
-        walkTimer.current = setTimeout(step, 4000 + Math.random() * 7000);
+        walkTimer.current = setTimeout(step, (4000 + Math.random() * 7000) * pace);
       });
     };
 
@@ -150,7 +187,7 @@ export default function FloatingSpirit() {
       cancelled = true;
       clearTimeout(walkTimer.current);
     };
-  }, [hidden, width]);
+  }, [hidden, width, pace, vigour]);
 
   // A small vertical bob while it walks — the difference between an animal
   // moving and a sticker sliding.
@@ -243,6 +280,7 @@ export default function FloatingSpirit() {
             id={id}
             size={SIZE}
             points={growth}
+            energy={vigour}
             flip={flip}
             pulseKey={taps}
             expression={speaking ? 'happy' : 'idle'}

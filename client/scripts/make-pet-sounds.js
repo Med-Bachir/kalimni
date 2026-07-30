@@ -169,6 +169,81 @@ const voices = {
     });
     return finish(out, 0.44);
   },
+
+  // Rabbit — barely there. Rabbits are nearly silent, so this is a single
+  // tiny high squeak, over before you are sure you heard it.
+  rabbit() {
+    const out = buffer(0.28);
+    syllable(out, 0, {
+      freq: 920, dur: 0.11, contour: riseFall, vibrato: 18, vibratoDepth: 0.03,
+      harmonics: [1, 0.22, 0.08],
+    });
+    return finish(out, 0.32);
+  },
+
+  // Wolf — a howl. Long, low, rising and then falling away, with the vibrato
+  // widening at the tail the way a real one wavers.
+  wolf() {
+    const out = buffer(1.5);
+    syllable(out, 0, {
+      freq: 265, dur: 1.25,
+      contour: (p) => (p < 0.25 ? 1 + p * 1.1 : 1.28 - (p - 0.25) * 0.34),
+      vibrato: 6, vibratoDepth: 0.028, breath: 0.03,
+      harmonics: [1, 0.42, 0.18, 0.07],
+    });
+    return finish(out, 0.44);
+  },
+
+  // Hedgehog — a snuffle, not a voice. Mostly breath with a faint pitch under
+  // it, which is exactly what a hedgehog sounds like.
+  hedgehog() {
+    const out = buffer(0.55);
+    [0, 0.14, 0.3].forEach((at, i) => {
+      syllable(out, at, {
+        freq: 300 + i * 22, dur: 0.12, contour: fall, vibrato: 9, vibratoDepth: 0.02,
+        breath: 0.4, harmonics: [1, 0.2], gain: 1 - i * 0.15,
+      });
+    });
+    return finish(out, 0.34);
+  },
+
+  // Otter — a bright chirp, repeated. Otters chatter constantly and sound
+  // delighted doing it.
+  otter() {
+    const out = buffer(0.62);
+    [0, 0.13, 0.27].forEach((at, i) => {
+      syllable(out, at, {
+        freq: 760 + i * 60, dur: 0.1, contour: rise, vibrato: 16, vibratoDepth: 0.03,
+        harmonics: [1, 0.34, 0.14], gain: 1 - i * 0.1,
+      });
+    });
+    return finish(out, 0.4);
+  },
+
+  // Crane — a bugle. Clear, unhurried, carrying: the one voice in the cast
+  // that sounds like it expects to be heard a long way off.
+  crane() {
+    const out = buffer(1.05);
+    syllable(out, 0, {
+      freq: 520, dur: 0.82, contour: (p) => (p < 0.15 ? 1 + p * 0.9 : 1.13 - (p - 0.15) * 0.12),
+      vibrato: 11, vibratoDepth: 0.022, breath: 0.04,
+      harmonics: [1, 0.48, 0.24, 0.1],
+    });
+    return finish(out, 0.42);
+  },
+
+  // Squirrel — fast chatter. Four clipped chirps, each a touch higher, like
+  // something scolding you from a branch.
+  squirrel() {
+    const out = buffer(0.55);
+    [0, 0.085, 0.17, 0.255].forEach((at, i) => {
+      syllable(out, at, {
+        freq: 640 + i * 48, dur: 0.07, contour: fall, vibrato: 20, vibratoDepth: 0.025,
+        harmonics: [1, 0.4, 0.2], gain: 1 - i * 0.08,
+      });
+    });
+    return finish(out, 0.38);
+  },
 };
 
 // --- feeding -----------------------------------------------------------------

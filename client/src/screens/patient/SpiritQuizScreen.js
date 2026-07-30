@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, ScrollView, Pressable, Image } from 'react-native';
+import { View, ScrollView, Pressable, Image, Switch } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen, T, Button, BackButton, Card } from '../../components/ui';
@@ -9,6 +9,7 @@ import { colors } from '../../theme/colors';
 import { useI18n } from '../../i18n';
 import { useSpirit } from '../../store/spirit';
 import { useCalm } from '../../store/calm';
+import { useSettings } from '../../store/settings';
 import { SPIRIT_QUIZ, spiritById } from '../../utils/spiritData';
 import { habitatFor } from '../../utils/spiritArt';
 import { localizeDigits } from '../../utils/format';
@@ -34,6 +35,8 @@ export default function SpiritQuizScreen({ navigation }) {
   const discover = useSpirit((s) => s.discover);
   const existing = useSpirit((s) => s.id);
   const growth = useCalm((s) => s.growth);
+  const companion = useSettings((s) => s.companion);
+  const setCompanion = useSettings((s) => s.setCompanion);
 
   // -1 = intro, 0..4 = questions, SPIRIT_QUIZ.length = reveal
   const [step, setStep] = useState(-1);
@@ -201,7 +204,34 @@ export default function SpiritQuizScreen({ navigation }) {
             </Card>
           </FadeIn>
 
+          {/* Asked, not assumed.
+              An animal that walks across every screen is the most opinionated
+              thing in this app: delightful for most people, and genuinely
+              intolerable for some — and "some" here means people who are
+              already struggling and did not ask for a cartoon in their therapy
+              app. Defaulting to yes but showing the switch at the moment the
+              animal appears costs one row, and turns the one design decision
+              most likely to make somebody uninstall into a decision they made
+              themselves. */}
           <FadeIn index={4}>
+            <Card style={{ padding: 16, flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+              <Ionicons name="footsteps-outline" size={19} color={colors.primary} />
+              <View style={{ flex: 1, gap: 3 }}>
+                <T w="600" size={14}>
+                  {t('spirit.followTitle', { name: t(`spirit.animals.${spirit.id}.name`) })}
+                </T>
+                <T size={12} color={colors.muted} style={{ lineHeight: 19 }}>{t('spirit.followBody')}</T>
+              </View>
+              <Switch
+                value={companion}
+                onValueChange={(v) => { hapticTap(); setCompanion(v); }}
+                trackColor={{ false: colors.track, true: colors.primary }}
+                thumbColor="#fff"
+              />
+            </Card>
+          </FadeIn>
+
+          <FadeIn index={5}>
             <Card style={{ padding: 16, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
               <Ionicons name="infinite-outline" size={19} color={colors.primary} />
               <T size={12.5} color={colors.muted} style={{ flex: 1, lineHeight: 21 }}>{t('spirit.promise')}</T>
@@ -209,7 +239,7 @@ export default function SpiritQuizScreen({ navigation }) {
           </FadeIn>
 
           <View style={{ flex: 1 }} />
-          <FadeIn index={5} style={{ gap: 10 }}>
+          <FadeIn index={6} style={{ gap: 10 }}>
             <Button title={t('spirit.keep')} onPress={() => { hapticTap(); navigation.goBack(); }} />
             <Pressable onPress={() => { hapticTap(); restart(); }} style={{ paddingVertical: 12, alignItems: 'center' }}>
               <T w="600" size={13.5} color={colors.muted}>{t('spirit.retake')}</T>

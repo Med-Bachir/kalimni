@@ -28,6 +28,12 @@ const SOURCES = {
   'voice-turtle': require('../../assets/sounds/pets/voice-turtle.wav'),
   'voice-cat': require('../../assets/sounds/pets/voice-cat.wav'),
   'voice-bear': require('../../assets/sounds/pets/voice-bear.wav'),
+  'voice-rabbit': require('../../assets/sounds/pets/voice-rabbit.wav'),
+  'voice-wolf': require('../../assets/sounds/pets/voice-wolf.wav'),
+  'voice-hedgehog': require('../../assets/sounds/pets/voice-hedgehog.wav'),
+  'voice-otter': require('../../assets/sounds/pets/voice-otter.wav'),
+  'voice-crane': require('../../assets/sounds/pets/voice-crane.wav'),
+  'voice-squirrel': require('../../assets/sounds/pets/voice-squirrel.wav'),
 };
 
 // Per-sound level. The generator peak-normalises each file, so this is where

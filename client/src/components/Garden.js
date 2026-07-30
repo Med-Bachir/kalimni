@@ -738,7 +738,15 @@ function Critter({ index, width, night, color }) {
  * collectible backdrop the patient has chosen. `spiritId`, when set, sits the
  * patient's spirit animal on the near edge of the bed.
  */
-export default function Garden({ points = 0, skyId = 'dawn', spiritId, onSpiritPress, spiritPulse = 0, style }) {
+export default function Garden({
+  points = 0,
+  skyId = 'dawn',
+  spiritId,
+  spiritEnergy = 3,
+  onSpiritPress,
+  spiritPulse = 0,
+  style,
+}) {
   // Measured, not passed in: the scatter positions (stars, pebbles, hills,
   // critter paths) are all fractions of the canvas width, and a hard-coded
   // guess puts half of them off-screen on a tablet. The default is only used
@@ -889,7 +897,7 @@ export default function Garden({ points = 0, skyId = 'dawn', spiritId, onSpiritP
             hitSlop={8}
             style={{ position: 'absolute', right: 12, bottom: GROUND * 0.16 }}
           >
-            <SpiritAnimal id={spiritId} size={68} points={points} pulseKey={spiritPulse} aura={false} />
+            <SpiritAnimal id={spiritId} size={68} points={points} energy={spiritEnergy} pulseKey={spiritPulse} aura={false} />
           </Pressable>
         ) : null}
 

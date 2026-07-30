@@ -18,12 +18,18 @@
 // is where the animal stands.
 
 const ART = {
-  owl: require('../../assets/spirits/owl.jpg'),       // moonlit forest clearing
-  deer: require('../../assets/spirits/deer.jpg'),     // birch wood at dusk, low mist
-  fox: require('../../assets/spirits/fox.jpg'),       // an empty road through autumn hills
-  turtle: require('../../assets/spirits/turtle.jpg'), // a still shore at dawn
-  cat: require('../../assets/spirits/cat.jpg'),       // a rooftop above a lit city
-  bear: require('../../assets/spirits/bear.jpg'),     // a valley lake under twilight
+  owl: require('../../assets/spirits/owl.jpg'),           // moonlit forest clearing
+  deer: require('../../assets/spirits/deer.jpg'),         // birch wood at dusk, low mist
+  fox: require('../../assets/spirits/fox.jpg'),           // an empty road through autumn hills
+  turtle: require('../../assets/spirits/turtle.jpg'),     // a still shore at dawn
+  cat: require('../../assets/spirits/cat.jpg'),           // a rooftop above a lit city
+  bear: require('../../assets/spirits/bear.jpg'),         // a valley lake under twilight
+  rabbit: require('../../assets/spirits/rabbit.jpg'),     // a meadow at first light
+  wolf: require('../../assets/spirits/wolf.jpg'),         // a snowy ridge under a pale moon
+  hedgehog: require('../../assets/spirits/hedgehog.jpg'), // a hedgerow at dusk
+  otter: require('../../assets/spirits/otter.jpg'),       // a slow river bend at morning
+  crane: require('../../assets/spirits/crane.jpg'),       // a misty wetland at dawn
+  squirrel: require('../../assets/spirits/squirrel.jpg'), // an autumn oak wood
 };
 
 export const habitatFor = (id) => ART[id] || ART.owl;

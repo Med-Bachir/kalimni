@@ -11,6 +11,7 @@ import { useSpirit } from '../../store/spirit';
 import { useCalm } from '../../store/calm';
 import { spiritById } from '../../utils/spiritData';
 import { habitatFor } from '../../utils/spiritArt';
+import { useSpiritEnergy } from '../../hooks/useSpiritEnergy';
 import { localizeDigits } from '../../utils/format';
 import { tap as hapticTap, success as hapticSuccess } from '../../utils/haptics';
 import { voice as soundVoice, feed as soundFeed, happy as soundHappy } from '../../utils/sound';
@@ -81,6 +82,7 @@ export default function SpiritHomeScreen({ navigation }) {
   const bond = useSpirit((s) => s.bond);
   const feed = useSpirit((s) => s.feed);
   const growth = useCalm((s) => s.growth);
+  const energy = useSpiritEnergy(!!id);
 
   const [sceneH, setSceneH] = useState(320);
   const [eating, setEating] = useState(false);
@@ -200,6 +202,7 @@ export default function SpiritHomeScreen({ navigation }) {
                   id={id}
                   size={PET_SIZE}
                   points={growth}
+                  energy={energy ?? 3}
                   pulseKey={pulse}
                   expression={eating ? 'eating' : 'idle'}
                   aura

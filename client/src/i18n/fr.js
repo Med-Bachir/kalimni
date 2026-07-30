@@ -441,7 +441,7 @@ export default {
 
   spirit: {
     title: 'Votre animal compagnon',
-    introTitle: 'Cinq questions, puis vous rencontrez votre compagnon',
+    introTitle: 'Sept questions, puis vous rencontrez votre compagnon',
     introBody:
       "Ce ne sont pas des questions médicales, ni un test de votre état. Des questions sur votre tempérament : où vous vous tenez dans une pièce pleine de monde, à quoi ressemble le calme pour vous. À la fin, un animal apparaît et vous accompagne en haut de votre conversation.",
     introNote: "Il n'y a ni bonne ni mauvaise réponse, et aucun score. Vous pouvez refaire les questions et changer de compagnon quand vous voulez.",
@@ -455,8 +455,10 @@ export default {
     retake: 'Ça ne vous ressemble pas ? Refaire',
     promise: 'Votre compagnon n’a pas faim, ne tombe pas malade et ne s’en va pas. Si vous disparaissez un mois, vous le retrouverez exactement où vous l’avez laissé.',
     bandPrompt: 'Rencontrez votre animal compagnon',
-    bandPromptBody: 'Cinq questions courtes sur votre tempérament. Aucun score.',
+    bandPromptBody: 'Sept questions courtes sur votre tempérament. Aucun score.',
     listening: '{name} vous écoute…',
+    followTitle: '{name} vous accompagne',
+    followBody: 'Il se promène en bas de l’écran et vous répond si vous le touchez. Vous pouvez le désactiver quand vous voulez depuis votre profil — il restera dans son jardin et chez lui.',
     giveTreat: 'Donnez-lui quelque chose',
     bondBody: 'Vous avez partagé {n} gourmandises avec {name}. Rien ici ne vous est compté.',
     neverHungry: '{name} n’a jamais faim, ne devient jamais triste si vous partez, et n’attend rien de vous. Nourrir est un simple jeu — laissez-le un mois et vous le retrouverez exactement pareil.',
@@ -517,6 +519,20 @@ export default {
         c: 'Un toit au-dessus d’une ville allumée',
         d: 'Une route que je n’ai jamais prise',
       },
+      unknown: {
+        q: 'Quelque chose d’incertain approche. Que faites-vous de l’attente ?',
+        a: 'Je prévois chaque version possible',
+        b: 'Je me tends, et je sursaute au moindre bruit',
+        c: 'Je m’occupe pour ne pas y penser',
+        d: 'Je me tais et j’attends que ça passe',
+      },
+      seen: {
+        q: 'Qu’est-ce que les gens comprennent mal chez vous ?',
+        a: 'Ils me croient bien, parce que j’en ai l’air',
+        b: 'Ils me trouvent froid ; je suis seulement prudent',
+        c: 'Ils pensent que je n’ai besoin de personne',
+        d: 'Ils me croient léger, parce que je plaisante',
+      },
     },
     // Every description names a strength first and its cost second, and none of
     // them is a diagnosis or a personality verdict — a sentence someone reads
@@ -551,6 +567,36 @@ export default {
         name: 'L’Ours',
         trait: 'Celui qui protège d’abord',
         body: 'Vous prenez des nouvelles de tout le monde, et vous arrivez à vous en dernier, s’il reste du temps. Porter les autres est une habitude généreuse et épuisante à la fois. L’ours est assez grand pour en porter un peu à votre place, et il ne demande rien en retour.',
+      },
+      rabbit: {
+        name: 'Le Lièvre',
+        trait: 'Celui qui entend avant tout le monde',
+        body: 'Vous captez le danger avant qu’il n’arrive, et parfois avant qu’il n’existe. Cette vigilance vous a protégé un jour, et c’est pour ça qu’elle est restée. Le lièvre ne vous demande pas d’arrêter d’écouter — seulement de savoir que certains bruits ne viennent pas vers vous.',
+      },
+      wolf: {
+        name: 'Le Loup',
+        trait: 'Le fidèle à qui il manque une meute',
+        body: 'Vous êtes fait pour appartenir : vous donnez profondément, et vous vous souvenez de qui est resté. C’est aussi pourquoi la solitude vous coûte plus qu’aux autres. Le loup ne voit pas une faiblesse dans votre besoin des autres ; il y voit ce avec quoi vous êtes né.',
+      },
+      hedgehog: {
+        name: 'Le Hérisson',
+        trait: 'Celui qui se protège avant d’être blessé',
+        body: 'Vous sortez les piquants d’abord et vous expliquez après, si vous expliquez. Ce n’est pas de la dureté, c’est une armure apprise en son temps, pour de bonnes raisons. Le hérisson sait que les piquants protègent un ventre tendre — et il sait à quel point il est tendre.',
+      },
+      otter: {
+        name: 'La Loutre',
+        trait: 'Celle qui trouve la légèreté',
+        body: 'Vous savez créer un moment léger dans une journée lourde, et les gens respirent près de vous. Parfois vous utilisez ce talent pour éviter de vous asseoir avec ce qui vous pèse, vous. La loutre aime jouer, et ne croit pas que jouer veut dire aller bien.',
+      },
+      crane: {
+        name: 'La Grue',
+        trait: 'Le calme en surface',
+        body: 'Vous paraissez posé et solide, pendant que travaille sous la surface ce que personne ne voit. Avoir l’air d’aller bien est une compétence, et son prix est que personne ne demande. La grue se tient immobile dans l’eau, et sait exactement ce que ça coûte.',
+      },
+      squirrel: {
+        name: 'L’Écureuil',
+        trait: 'Celui qui prépare un hiver qui ne viendra peut-être pas',
+        body: 'Vous stockez les plans et les scénarios, et vous pensez au pire pour y être prêt. Cette anticipation vous a sauvé souvent, mais elle ne sait pas quand s’arrêter. L’écureuil ne vous reproche pas de faire des réserves ; il vous rappelle seulement que certains jours sont vraiment sûrs.',
       },
     },
   },

@@ -1,30 +1,48 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { View, Animated, Easing } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { spiritById, spiritStage } from '../utils/spiritData';
 
-// The spirit animal, drawn from plain Views — circles, capsules, border
-// triangles and a lot of rotation. Same constraint as Garden.js: no SVG and no
-// Lottie, so the whole creature ships over EAS Update and costs about sixty
-// views instead of a native dependency.
+// The spirit animals, drawn from plain Views — circles, capsules, border
+// triangles, gradients and a lot of rotation. Same constraint as Garden.js: no
+// SVG and no Lottie, so the whole cast ships over EAS Update instead of a
+// native dependency.
 //
 // Everything is laid out on a 100x100 grid and multiplied by `size / 100`, so
-// one component renders correctly at 34px beside a chat bubble and at 190px on
-// the reveal screen.
+// one component renders correctly at 44px in an invite card and at 190px on the
+// reveal screen.
 //
-// The motion is the point. A still drawing at the top of a chat is a logo; the
-// same drawing breathing, blinking on its own schedule and turning to look at
-// you when you start typing is company. All of it is slow and small on
-// purpose — this sits above a mental-health conversation, so nothing here is
-// allowed to twitch, flash or demand attention.
+// WHAT MAKES THEM READ AS ANIMALS RATHER THAN SHAPES, in the order that it
+// matters — this is the whole design of the file:
 //
-// LAYOUT NOTE: ears, antlers and tails stick out well past the head and body
-// circles, and Android clips children that overflow their parent's bounds. So
-// the head and body each live in a deliberately oversized box, and those parts
-// are positioned in *box* coordinates rather than relative to the circle they
-// hang off. That is why the helpers below take boxW/boxH.
+//   1. the eye      A solid black oval is a cartoon. An iris with a pupil, a
+//                   dark rim, a shadow under the brow and two catchlights is an
+//                   eye, and the face follows it. Slit pupils for the hunters.
+//   2. shading      Every mass is a top-lit gradient (accent -> body -> dark)
+//                   with a rim light along the top edge, so the body reads as
+//                   round instead of flat.
+//   3. silhouette   Ears, tails, necks and quills carry recognition at a
+//                   glance — a rabbit is its ears, a crane is its neck.
+//   4. fur          Small tufts breaking the outline, so the edge is not a
+//                   perfect mathematical curve.
+//
+//   ...and none of it at the expense of the proportions, which stay firmly
+//   infantile: big head, low eyes, short limbs, round everything. "Cute" is
+//   mostly a pile of baby proportions, and detail sits on top of that rather
+//   than replacing it.
+//
+// LAYOUT NOTE: ears, antlers, necks and tails stick out well past the head and
+// body circles, and Android clips children that overflow their parent's bounds.
+// So the head and body each live in a deliberately oversized box, and those
+// parts are positioned in *box* coordinates. That is why the helpers take
+// boxW/headTop rather than positioning relative to the circle they hang off.
 
-const EYE = '#2A2320';
-const SHINE = 'rgba(255,255,255,.92)';
+const EYE = '#241D19';
+const SHINE = 'rgba(255,255,255,.95)';
+
+// Hunters get a vertical slit. It is two lines of code and it is the single
+// clearest signal of "predator" in the whole drawing.
+const SLIT_PUPILS = new Set(['cat', 'fox']);
 
 /** Upward-pointing triangle via the border trick — RN's only polygon. */
 function Triangle({ w, h, color, style }) {
@@ -49,27 +67,42 @@ function Triangle({ w, h, color, style }) {
   );
 }
 
-/** Capsule/ellipse helper — the shape almost every body part is made of. */
+/** Capsule/ellipse — the shape almost every body part is made of. */
 function Blob({ w, h, color, style }) {
   return <View style={[{ width: w, height: h, borderRadius: Math.min(w, h) / 2, backgroundColor: color }, style]} />;
 }
 
+/** A top-lit mass. The gradient is what stops everything looking like paper. */
+function Mass({ w, h, radius, palette, style, children }) {
+  return (
+    <LinearGradient
+      colors={[palette.accent, palette.body, palette.dark]}
+      locations={[0, 0.52, 1]}
+      start={{ x: 0.35, y: 0 }}
+      end={{ x: 0.62, y: 1 }}
+      style={[{ width: w, height: h, borderRadius: radius ?? Math.min(w, h) / 2, overflow: 'hidden' }, style]}
+    >
+      {children}
+    </LinearGradient>
+  );
+}
+
 // --- head parts -------------------------------------------------------------
 
-function Ears({ kind, head, boxW, boxH, palette, u, sway }) {
-  if (kind === 'none') return null;
+function Ears({ kind, head, boxW, headTop, palette, u, sway, detailed }) {
+  if (!kind || kind === 'none') return null;
 
-  // Top of the head circle inside the box, since the circle is bottom-aligned.
-  const headTop = boxH - head;
   const lean = sway.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '5deg'] });
   const leanBack = sway.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '-5deg'] });
 
+  // Pointed family: fox, cat, wolf (wide and upright), owl and squirrel tufts
+  // (narrow, tilted out).
   if (kind === 'pointed' || kind === 'tufts') {
-    // Fox/cat ears sit wide and upright; owl tufts sit narrow and tilt outward.
-    const w = head * (kind === 'tufts' ? 0.32 : 0.44);
-    const h = head * (kind === 'tufts' ? 0.46 : 0.52);
-    const offset = head * (kind === 'tufts' ? 0.17 : 0.3);
-    const tilt = kind === 'tufts' ? 22 : 12;
+    const tuft = kind === 'tufts';
+    const w = head * (tuft ? 0.32 : 0.44);
+    const h = head * (tuft ? 0.46 : 0.54);
+    const offset = head * (tuft ? 0.18 : 0.3);
+    const tilt = tuft ? 22 : 12;
     return (
       <>
         {[-1, 1].map((side) => (
@@ -77,22 +110,46 @@ function Ears({ kind, head, boxW, boxH, palette, u, sway }) {
             key={side}
             style={{
               position: 'absolute',
-              top: headTop - h * 0.66,
+              top: headTop - h * 0.62,
               left: boxW / 2 + side * offset - w / 2,
               transform: [{ rotate: `${side * tilt}deg` }, { rotate: side < 0 ? leanBack : lean }],
             }}
           >
             <Triangle w={w} h={h} color={palette.dark} />
-            <Triangle w={w * 0.5} h={h * 0.5} color={palette.accent} style={{ position: 'absolute', bottom: 0, left: w * 0.25 }} />
+            <Triangle w={w * 0.52} h={h * 0.52} color={palette.accent} style={{ position: 'absolute', bottom: 0, left: w * 0.24 }} />
+            {detailed && <Triangle w={w * 0.3} h={h * 0.3} color={palette.deep} style={{ position: 'absolute', bottom: 0, left: w * 0.35, opacity: 0.4 }} />}
           </Animated.View>
         ))}
       </>
     );
   }
 
+  // Rabbit: the ears ARE the animal. Tall, upright, leaning apart.
+  if (kind === 'tall') {
+    const w = head * 0.24;
+    const h = head * 0.98;
+    return (
+      <>
+        {[-1, 1].map((side) => (
+          <Animated.View
+            key={side}
+            style={{
+              position: 'absolute',
+              top: headTop - h * 0.72,
+              left: boxW / 2 + side * head * 0.2 - w / 2,
+              transform: [{ rotate: `${side * 11}deg` }, { rotate: side < 0 ? leanBack : lean }],
+            }}
+          >
+            <Blob w={w} h={h} color={palette.dark} />
+            <Blob w={w * 0.5} h={h * 0.78} color="#E6C4C0" style={{ position: 'absolute', top: h * 0.12, left: w * 0.25, opacity: 0.85 }} />
+          </Animated.View>
+        ))}
+      </>
+    );
+  }
+
+  // Deer: tall soft ears plus antler nubs — what stops it reading as "rabbit".
   if (kind === 'long') {
-    // Deer: tall soft ears plus two antler nubs, which is what stops the
-    // silhouette reading as "rabbit".
     const w = head * 0.26;
     const h = head * 0.68;
     return (
@@ -121,13 +178,35 @@ function Ears({ kind, head, boxW, boxH, palette, u, sway }) {
               transform: [{ rotate: `${side * 16}deg` }],
             }}
           >
-            <Blob w={u * 2} h={head * 0.3} color={palette.dark} />
+            <Blob w={u * 2} h={head * 0.3} color={palette.deep} />
             <Blob
               w={u * 1.5}
               h={head * 0.14}
-              color={palette.dark}
+              color={palette.deep}
               style={{ position: 'absolute', top: 0, left: side > 0 ? u * 1.4 : -u * 1.4, transform: [{ rotate: `${side * 40}deg` }] }}
             />
+          </View>
+        ))}
+      </>
+    );
+  }
+
+  // Hedgehog / otter: barely there, low on the skull.
+  if (kind === 'small') {
+    const d = head * 0.24;
+    return (
+      <>
+        {[-1, 1].map((side) => (
+          <View
+            key={side}
+            style={{
+              position: 'absolute',
+              top: headTop + head * 0.06,
+              left: boxW / 2 + side * head * 0.42 - d / 2,
+            }}
+          >
+            <Blob w={d} h={d} color={palette.dark} />
+            <Blob w={d * 0.5} h={d * 0.5} color={palette.deep} style={{ position: 'absolute', top: d * 0.25, left: d * 0.25, opacity: 0.6 }} />
           </View>
         ))}
       </>
@@ -149,60 +228,74 @@ function Ears({ kind, head, boxW, boxH, palette, u, sway }) {
           }}
         >
           <Blob w={d} h={d} color={palette.dark} />
-          <Blob w={d * 0.5} h={d * 0.5} color={palette.accent} style={{ position: 'absolute', top: d * 0.25, left: d * 0.25 }} />
+          <Blob w={d * 0.52} h={d * 0.52} color={palette.accent} style={{ position: 'absolute', top: d * 0.24, left: d * 0.24 }} />
         </Animated.View>
       ))}
     </>
   );
 }
 
-function Muzzle({ kind, head, palette, u }) {
-  if (kind === 'beak') {
-    // Owl: a downward triangle, which is the entire difference between "bird"
-    // and "brown circle with eyes".
-    const w = head * 0.21;
+function Muzzle({ kind, head, palette, u, detailed }) {
+  if (kind === 'beak' || kind === 'longbeak') {
+    const long = kind === 'longbeak';
+    const w = head * (long ? 0.22 : 0.21);
+    const h = w * (long ? 2.6 : 1.3);
     return (
-      <View style={{ position: 'absolute', top: head * 0.5, left: head / 2 - w / 2 }}>
-        <Triangle w={w} h={w * 1.3} color="#D9A441" style={{ transform: [{ rotate: '180deg' }] }} />
+      <View style={{ position: 'absolute', top: head * (long ? 0.44 : 0.5), left: head / 2 - w / 2 }}>
+        <Triangle w={w} h={h} color={long ? '#D8B15E' : '#D9A441'} style={{ transform: [{ rotate: '180deg' }] }} />
+        {detailed && (
+          <View style={{ position: 'absolute', top: h * 0.18, left: w * 0.42, width: Math.max(0.8, u * 0.5), height: h * 0.5, backgroundColor: '#00000022' }} />
+        )}
       </View>
     );
   }
 
   if (kind === 'snout') {
-    // Fox/deer: a tapered muzzle with the nose at the tip.
     const w = head * 0.42;
     const h = head * 0.3;
     return (
       <View style={{ position: 'absolute', top: head * 0.5, left: head / 2 - w / 2, alignItems: 'center' }}>
         <Blob w={w} h={h} color={palette.belly} />
-        <Blob w={w * 0.32} h={w * 0.24} color={EYE} style={{ position: 'absolute', top: h * 0.16 }} />
+        {detailed && <Blob w={w * 0.7} h={h * 0.4} color="#00000010" style={{ position: 'absolute', bottom: 0, left: w * 0.15 }} />}
+        <Blob w={w * 0.34} h={w * 0.26} color={EYE} style={{ position: 'absolute', top: h * 0.12 }} />
+        {detailed && (
+          <Blob w={w * 0.12} h={w * 0.08} color={SHINE} style={{ position: 'absolute', top: h * 0.16, left: w * 0.36, opacity: 0.75 }} />
+        )}
       </View>
     );
   }
 
-  // round — cat, bear, turtle
+  // round — cat, bear, turtle, rabbit, otter
   const w = head * 0.46;
   const h = head * 0.27;
   const bar = Math.max(1, u * 0.7);
   return (
     <View style={{ position: 'absolute', top: head * 0.49, left: head / 2 - w / 2, alignItems: 'center' }}>
       <Blob w={w} h={h} color={palette.belly} />
-      <Blob w={w * 0.26} h={w * 0.19} color={EYE} style={{ position: 'absolute', top: 0 }} />
+      {detailed && <Blob w={w * 0.72} h={h * 0.42} color="#00000010" style={{ position: 'absolute', bottom: 0, left: w * 0.14 }} />}
+      <Blob w={w * 0.28} h={w * 0.2} color={EYE} style={{ position: 'absolute', top: 0 }} />
+      {detailed && (
+        <Blob w={w * 0.1} h={w * 0.07} color={SHINE} style={{ position: 'absolute', top: w * 0.03, left: w * 0.4, opacity: 0.8 }} />
+      )}
       {/* two short bars angled apart: a mouth, without needing a curve */}
       <View style={{ position: 'absolute', top: h * 0.44, flexDirection: 'row', gap: u * 0.6 }}>
-        <View style={{ width: w * 0.2, height: bar, borderRadius: u, backgroundColor: EYE, opacity: 0.45, transform: [{ rotate: '18deg' }] }} />
-        <View style={{ width: w * 0.2, height: bar, borderRadius: u, backgroundColor: EYE, opacity: 0.45, transform: [{ rotate: '-18deg' }] }} />
+        <View style={{ width: w * 0.2, height: bar, borderRadius: u, backgroundColor: EYE, opacity: 0.42, transform: [{ rotate: '18deg' }] }} />
+        <View style={{ width: w * 0.2, height: bar, borderRadius: u, backgroundColor: EYE, opacity: 0.42, transform: [{ rotate: '-18deg' }] }} />
       </View>
     </View>
   );
 }
 
-function Eyes({ head, build, palette, blink, wide, isOwl, expression }) {
+/**
+ * The eye. Five stacked layers, and worth every one of them: rim, iris, pupil,
+ * brow shadow, catchlights. This is where almost all the perceived realism in
+ * the whole component lives.
+ */
+function Eyes({ head, build, palette, blink, wide, expression, slit, detailed, hasDisc }) {
   const eyeD = head * build.eyeRatio * 1.7;
   const gap = head * build.eyeGap;
-  // Eyes sit *below* the middle of the head. That is the single strongest cue
-  // in the whole drawing: high eyes read as adult, low eyes read as infant, and
-  // "cute" is mostly a pile of infant proportions.
+  // Eyes sit *below* the middle of the head. The single strongest cue in the
+  // drawing: high eyes read as adult, low eyes read as infant.
   const eyeTop = head * 0.36;
   const smiling = expression === 'happy' || expression === 'eating';
 
@@ -219,15 +312,13 @@ function Eyes({ head, build, palette, blink, wide, isOwl, expression }) {
             justifyContent: 'center',
           }}
         >
-          {/* Owls get a pale ring around each eye — the facial disc is what
-              makes an owl legible at 34px. */}
-          {isOwl && (
-            <Blob w={eyeD * 1.75} h={eyeD * 1.75} color={palette.belly} style={{ position: 'absolute' }} />
-          )}
+          {/* Owls and cranes get a pale facial disc — it is what makes a bird
+              legible at small sizes. */}
+          {hasDisc && <Blob w={eyeD * 1.7} h={eyeD * 1.7} color={palette.belly} style={{ position: 'absolute' }} />}
 
           {smiling ? (
-            // A happy eye is an upward arc. Drawn as a ring clipped to its top
-            // half — RN has no arc primitive, and this costs two views.
+            // A happy eye is an upward arc: a ring clipped to its top half.
+            // RN has no arc primitive and this costs two views.
             <View style={{ width: eyeD * 1.2, height: eyeD * 0.6, overflow: 'hidden', alignItems: 'center' }}>
               <View
                 style={{
@@ -246,46 +337,86 @@ function Eyes({ head, build, palette, blink, wide, isOwl, expression }) {
                 width: eyeD,
                 height: eyeD,
                 borderRadius: eyeD / 2,
-                backgroundColor: EYE,
-                // Blink is a vertical squash, not an eyelid: one animated value,
-                // and it reads correctly on all six animals.
+                backgroundColor: EYE, // the rim / lash line
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+                // Blink is a vertical squash, not an eyelid: one animated
+                // value, and it reads correctly on all twelve animals.
                 transform: [
                   { scaleY: blink },
                   { scale: wide.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] }) },
                 ],
               }}
             >
-              {/* Two catchlights, not one. The big one is the light source; the
-                  small opposite one is what makes the eye look wet. */}
+              {/* iris */}
+              <View
+                style={{
+                  width: eyeD * 0.86,
+                  height: eyeD * 0.86,
+                  borderRadius: eyeD,
+                  backgroundColor: palette.iris,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {/* pupil — a slit for the hunters, round for everyone else */}
+                <View
+                  style={{
+                    width: eyeD * (slit ? 0.26 : 0.5),
+                    height: eyeD * (slit ? 0.78 : 0.5),
+                    borderRadius: eyeD,
+                    backgroundColor: EYE,
+                  }}
+                />
+              </View>
+              {/* shadow cast by the brow, across the top of the eye */}
+              {detailed && (
+                <View
+                  style={{
+                    position: 'absolute',
+                    top: -eyeD * 0.34,
+                    width: eyeD,
+                    height: eyeD * 0.62,
+                    borderRadius: eyeD,
+                    backgroundColor: '#000000',
+                    opacity: 0.2,
+                  }}
+                />
+              )}
+              {/* two catchlights: the big one is the light source, the small
+                  opposite one is what makes the eye look wet */}
               <View
                 style={{
                   position: 'absolute',
                   top: eyeD * 0.14,
-                  left: eyeD * 0.18,
-                  width: eyeD * 0.36,
-                  height: eyeD * 0.36,
+                  left: eyeD * 0.17,
+                  width: eyeD * 0.32,
+                  height: eyeD * 0.32,
                   borderRadius: eyeD,
                   backgroundColor: SHINE,
                 }}
               />
-              <View
-                style={{
-                  position: 'absolute',
-                  bottom: eyeD * 0.18,
-                  right: eyeD * 0.16,
-                  width: eyeD * 0.17,
-                  height: eyeD * 0.17,
-                  borderRadius: eyeD,
-                  backgroundColor: SHINE,
-                  opacity: 0.7,
-                }}
-              />
+              {detailed && (
+                <View
+                  style={{
+                    position: 'absolute',
+                    bottom: eyeD * 0.16,
+                    right: eyeD * 0.15,
+                    width: eyeD * 0.16,
+                    height: eyeD * 0.16,
+                    borderRadius: eyeD,
+                    backgroundColor: SHINE,
+                    opacity: 0.65,
+                  }}
+                />
+              )}
             </Animated.View>
           )}
         </View>
       ))}
-      {/* Blush, sitting just under the eyes. The thing that stops the face
-          reading cold — and it warms up when the animal is pleased. */}
+
+      {/* Blush, just under the eyes. Warms up when the animal is pleased. */}
       {[-1, 1].map((side) => (
         <View
           key={`cheek${side}`}
@@ -320,7 +451,7 @@ function Whiskers({ head, u }) {
               height: Math.max(1, u * 0.5),
               borderRadius: u,
               backgroundColor: '#FFFFFF',
-              opacity: 0.5,
+              opacity: 0.55,
               transform: [{ rotate: `${side * (i - 1) * 9}deg` }],
             }}
           />
@@ -333,12 +464,14 @@ function Whiskers({ head, u }) {
 // --- body parts -------------------------------------------------------------
 
 /** Horizontal room the tail needs beyond the body circle, as a fraction of it. */
-const TAIL_ROOM = { bushy: 0.8, curl: 0.6, fan: 0.55, tuft: 0.3, stub: 0.25, none: 0 };
+const TAIL_ROOM = {
+  bushy: 0.8, curl: 0.6, fan: 0.55, plume: 0.72, thick: 0.5,
+  tuft: 0.3, puff: 0.34, stub: 0.25, none: 0,
+};
 
 function Tail({ kind, bodyW, bodyH, boxW, palette, sway, u }) {
   if (!kind || kind === 'none') return null;
 
-  // Right edge of the body circle inside the box.
   const bodyRight = boxW / 2 + bodyW / 2;
   const swayRotate = sway.interpolate({ inputRange: [0, 1], outputRange: ['-6deg', '8deg'] });
 
@@ -357,6 +490,29 @@ function Tail({ kind, bodyW, bodyH, boxW, palette, sway, u }) {
         <Blob w={w * 0.7} h={w * 0.7} color={palette.belly} style={{ position: 'absolute', top: -w * 0.08, left: w * 0.22 }} />
       </>,
       { left: bodyRight - w * 0.35, bottom: bodyH * 0.06 }
+    );
+  }
+
+  // Squirrel and crane: a big vertical plume curling up behind the body.
+  if (kind === 'plume') {
+    const w = bodyW * 0.5;
+    const h = bodyH * 1.15;
+    return wrap(
+      <>
+        <Blob w={w} h={h} color={palette.dark} style={{ transform: [{ rotate: '12deg' }] }} />
+        <Blob w={w * 0.66} h={h * 0.72} color={palette.accent} style={{ position: 'absolute', top: h * 0.1, left: w * 0.2, opacity: 0.75 }} />
+      </>,
+      { left: bodyRight - w * 0.42, bottom: bodyH * 0.02 }
+    );
+  }
+
+  // Otter: a thick tapering rudder, low and heavy.
+  if (kind === 'thick') {
+    const w = bodyW * 0.44;
+    const h = bodyH * 0.32;
+    return wrap(
+      <Blob w={w} h={h} color={palette.dark} style={{ transform: [{ rotate: '-14deg' }] }} />,
+      { left: bodyRight - w * 0.3, bottom: bodyH * 0.02 }
     );
   }
 
@@ -389,6 +545,18 @@ function Tail({ kind, bodyW, bodyH, boxW, palette, sway, u }) {
     );
   }
 
+  // Rabbit: a round cotton puff.
+  if (kind === 'puff') {
+    const d = bodyW * 0.3;
+    return wrap(
+      <>
+        <Blob w={d} h={d} color={palette.belly} />
+        <Blob w={d * 0.5} h={d * 0.5} color="#FFFFFF" style={{ position: 'absolute', top: d * 0.12, left: d * 0.18, opacity: 0.6 }} />
+      </>,
+      { left: bodyRight - d * 0.5, bottom: bodyH * 0.1 }
+    );
+  }
+
   // tuft / stub
   const d = bodyW * (kind === 'tuft' ? 0.2 : 0.15);
   return wrap(<Blob w={d} h={d} color={palette.belly} />, { left: bodyRight - d * 0.4, bottom: bodyH * 0.4 });
@@ -398,23 +566,13 @@ function Markings({ kind, bodyW, bodyH, palette, u }) {
   if (kind === 'spots') {
     return (
       <>
-        {[
-          [0.28, 0.3],
-          [0.6, 0.24],
-          [0.42, 0.48],
-          [0.7, 0.52],
-        ].map(([x, y], i) => (
+        {[[0.28, 0.3], [0.6, 0.24], [0.42, 0.48], [0.7, 0.52]].map(([x, y], i) => (
           <View
             key={i}
             style={{
-              position: 'absolute',
-              left: bodyW * x,
-              top: bodyH * y,
-              width: u * 2.4,
-              height: u * 2.4,
-              borderRadius: u * 2,
-              backgroundColor: palette.belly,
-              opacity: 0.85,
+              position: 'absolute', left: bodyW * x, top: bodyH * y,
+              width: u * 2.4, height: u * 2.4, borderRadius: u * 2,
+              backgroundColor: palette.belly, opacity: 0.85,
             }}
           />
         ))}
@@ -429,14 +587,9 @@ function Markings({ kind, bodyW, bodyH, palette, u }) {
           <View
             key={i}
             style={{
-              position: 'absolute',
-              left: bodyW * 0.08,
-              top: bodyH * y,
-              width: bodyW * (0.3 - i * 0.05),
-              height: u * 1.5,
-              borderRadius: u,
-              backgroundColor: palette.dark,
-              opacity: 0.7,
+              position: 'absolute', left: bodyW * 0.08, top: bodyH * y,
+              width: bodyW * (0.3 - i * 0.05), height: u * 1.5, borderRadius: u,
+              backgroundColor: palette.deep, opacity: 0.55,
             }}
           />
         ))}
@@ -444,8 +597,59 @@ function Markings({ kind, bodyW, bodyH, palette, u }) {
     );
   }
 
+  // Wolf: a darker saddle over the shoulders and back.
+  if (kind === 'saddle') {
+    return (
+      <View
+        style={{
+          position: 'absolute', left: bodyW * 0.08, top: -bodyH * 0.04,
+          width: bodyW * 0.84, height: bodyH * 0.46,
+          borderRadius: bodyW * 0.5,
+          backgroundColor: palette.deep, opacity: 0.42,
+        }}
+      />
+    );
+  }
+
+  // Hedgehog: quills. A row of overlapping triangles across the back, in two
+  // staggered layers so the edge is spiky rather than serrated.
+  if (kind === 'spikes') {
+    return (
+      <>
+        <View
+          style={{
+            position: 'absolute', left: 0, right: 0, top: -bodyH * 0.06,
+            height: bodyH * 0.6, borderRadius: bodyW * 0.5,
+            backgroundColor: palette.dark,
+          }}
+        />
+        {[0, 1].map((row) => (
+          <View
+            key={row}
+            style={{
+              position: 'absolute',
+              left: bodyW * (row ? 0.1 : 0.04),
+              top: bodyH * (row ? 0.12 : 0.02),
+              flexDirection: 'row',
+              gap: bodyW * 0.005,
+            }}
+          >
+            {Array.from({ length: row ? 6 : 7 }, (_, i) => (
+              <Triangle
+                key={i}
+                w={bodyW * 0.13}
+                h={bodyH * 0.26}
+                color={row ? palette.deep : palette.dark}
+                style={{ transform: [{ rotate: `${(i - 3) * 7}deg` }] }}
+              />
+            ))}
+          </View>
+        ))}
+      </>
+    );
+  }
+
   if (kind === 'chest') {
-    // Owl breast speckles: three staggered rows of short dashes.
     return (
       <>
         {[0, 1, 2].map((row) =>
@@ -456,11 +660,8 @@ function Markings({ kind, bodyW, bodyH, palette, u }) {
                 position: 'absolute',
                 left: bodyW * (0.3 + col * 0.14) + (row % 2 ? u * 1.4 : 0),
                 top: bodyH * (0.34 + row * 0.15),
-                width: u * 1.5,
-                height: u * 0.9,
-                borderRadius: u,
-                backgroundColor: palette.dark,
-                opacity: 0.32,
+                width: u * 1.5, height: u * 0.9, borderRadius: u,
+                backgroundColor: palette.deep, opacity: 0.3,
               }}
             />
           ))
@@ -470,47 +671,66 @@ function Markings({ kind, bodyW, bodyH, palette, u }) {
   }
 
   if (kind === 'shell') {
-    // Turtle: the body IS the shell, so the plates carry the whole read.
     return (
       <>
         <View
           style={{
-            position: 'absolute',
-            left: bodyW * 0.05,
-            top: bodyH * 0.08,
-            right: bodyW * 0.05,
-            height: bodyH * 0.64,
-            borderRadius: bodyW * 0.44,
-            backgroundColor: palette.dark,
-            opacity: 0.5,
+            position: 'absolute', left: bodyW * 0.05, top: bodyH * 0.08,
+            right: bodyW * 0.05, height: bodyH * 0.64,
+            borderRadius: bodyW * 0.44, backgroundColor: palette.deep, opacity: 0.45,
           }}
         />
-        {[
-          [0.37, 0.18, 0.26],
-          [0.15, 0.36, 0.2],
-          [0.63, 0.36, 0.2],
-          [0.29, 0.54, 0.18],
-          [0.51, 0.54, 0.18],
-        ].map(([x, y, s], i) => (
-          <View
-            key={i}
-            style={{
-              position: 'absolute',
-              left: bodyW * x,
-              top: bodyH * y,
-              width: bodyW * s,
-              height: bodyW * s * 0.82,
-              borderRadius: bodyW * 0.05,
-              backgroundColor: palette.accent,
-              opacity: 0.9,
-            }}
-          />
-        ))}
+        {[[0.37, 0.18, 0.26], [0.15, 0.36, 0.2], [0.63, 0.36, 0.2], [0.29, 0.54, 0.18], [0.51, 0.54, 0.18]].map(
+          ([x, y, s], i) => (
+            <View
+              key={i}
+              style={{
+                position: 'absolute', left: bodyW * x, top: bodyH * y,
+                width: bodyW * s, height: bodyW * s * 0.82,
+                borderRadius: bodyW * 0.05, backgroundColor: palette.accent, opacity: 0.9,
+              }}
+            />
+          )
+        )}
       </>
     );
   }
 
   return null;
+}
+
+/**
+ * Tufts breaking the outline. A perfect mathematical curve reads as plastic;
+ * three triangles hanging off the edge read as an animal. Skipped entirely at
+ * small sizes, where they would just be noise.
+ */
+function Fur({ kind, w, h, palette, detailed }) {
+  if (!detailed || !kind || kind === 'smooth') return null;
+  const count = kind === 'shaggy' ? 5 : 3;
+  const size = w * (kind === 'shaggy' ? 0.17 : 0.13);
+
+  return (
+    <>
+      {Array.from({ length: count }, (_, i) => {
+        const side = i % 2 ? 1 : -1;
+        const t = 0.42 + Math.floor(i / 2) * 0.2;
+        return (
+          <Triangle
+            key={i}
+            w={size}
+            h={size * 1.5}
+            color={palette.dark}
+            style={{
+              position: 'absolute',
+              top: h * t,
+              left: side < 0 ? -size * 0.45 : w - size * 0.55,
+              transform: [{ rotate: `${side * 108}deg` }],
+            }}
+          />
+        );
+      })}
+    </>
+  );
 }
 
 /** A mote of light drifting up and fading. Stage adds more of them. */
@@ -562,18 +782,21 @@ function Mote({ size, color, index, delay }) {
 // --- the animal -------------------------------------------------------------
 
 /**
- * @param id       spirit id from utils/spiritData
- * @param size     box size in px; everything scales off it
- * @param mood     'idle' | 'listening' | 'happy'
- * @param aura     show the glow and the drifting motes
- * @param points   growth points, for the stage (or pass `stage` directly)
- * @param pulseKey change this to make the animal hop (e.g. on tap)
+ * @param id         spirit id from utils/spiritData
+ * @param size       box size in px; everything scales off it
+ * @param mood       'idle' | 'listening' | 'happy'
+ * @param expression 'idle' | 'happy' | 'eating'
+ * @param aura       show the glow and the drifting motes
+ * @param points     growth points, for the stage (or pass `stage` directly)
+ * @param pulseKey   change this to make the animal hop (e.g. on tap)
+ * @param flip       mirror it, to face the way it is walking
  */
 export default function SpiritAnimal({
   id,
   size = 96,
   mood = 'idle',
   expression = 'idle',
+  energy = 3,
   aura = true,
   points = 0,
   stage,
@@ -586,13 +809,31 @@ export default function SpiritAnimal({
   const u = size / 100;
   const level = stage ?? spiritStage(points);
 
+  // `energy` is the patient's last self-reported mood, 1..5 (hooks/useSpiritEnergy).
+  //
+  // It changes only *tempo*, never mood: on a low day the animal breathes and
+  // blinks more slowly and moves less, which reads as settling down beside
+  // someone. It never looks sad. See the long note in useSpiritEnergy for why
+  // that distinction is the entire point — a companion that visibly deflates
+  // when you report a bad day has turned into one more thing you are failing.
+  const vigour = Math.max(1, Math.min(5, Number(energy) || 3));
+  const pace = 1 + (3 - vigour) * 0.14; // >1 = slower, on the harder days
+  const lidRest = vigour <= 2 ? 0.9 : 1; // a fraction heavy-lidded, not sad
+
+  // Fine detail costs views and is invisible below about 60px, where the animal
+  // is a thumbnail. One flag gates all of it.
+  const detailed = size >= 60;
+
   const head = 58 * build.headRatio * u;
   const bodyW = 58 * build.bodyRatio * u;
   const bodyH = 50 * build.bodyRatio * u;
 
   // Oversized boxes so nothing that sticks out gets clipped on Android.
+  const earRoom = head * 0.58;
+  const neckH = build.neck ? head * build.neck + head * 0.2 : 0;
   const headBoxW = head * 1.9;
-  const headBoxH = head * 1.62;
+  const headBoxH = earRoom + head + neckH;
+  const headTop = earRoom;
   const bodyBoxW = bodyW * (1 + (TAIL_ROOM[features.tail] ?? 0.25));
 
   const breathe = useRef(new Animated.Value(0)).current;
@@ -602,33 +843,40 @@ export default function SpiritAnimal({
   const hop = useRef(new Animated.Value(0)).current;
   const glow = useRef(new Animated.Value(0)).current;
   const chew = useRef(new Animated.Value(0)).current;
+  const lid = useRef(new Animated.Value(1)).current;
+
+  // Eyelids settle to their resting height over a second, so a check-in saved
+  // while the animal is on screen changes it gently rather than snapping.
+  useEffect(() => {
+    Animated.timing(lid, { toValue: lidRest, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+  }, [lidRest]);
 
   // Breath. ~4.4s a cycle: slower than a resting human breath, which is the
   // point — an animal breathing slightly slower than you is the oldest
-  // co-regulation trick there is, and it is the same one BreathingScreen uses.
+  // co-regulation trick there is, and the same one BreathingScreen uses.
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(breathe, { toValue: 1, duration: 2100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(breathe, { toValue: 0, duration: 2300, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(breathe, { toValue: 1, duration: 2100 * pace, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(breathe, { toValue: 0, duration: 2300 * pace, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
       ])
     );
     loop.start();
     return () => loop.stop();
-  }, []);
+  }, [pace]);
 
   // Ears and tail, on a different period from the breath so the two never lock
   // into a mechanical-looking rhythm.
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(sway, { toValue: 1, duration: 2900, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(sway, { toValue: 0, duration: 3400, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(sway, { toValue: 1, duration: 2900 * pace, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(sway, { toValue: 0, duration: 3400 * pace, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
       ])
     );
     loop.start();
     return () => loop.stop();
-  }, []);
+  }, [pace]);
 
   useEffect(() => {
     if (!aura) return undefined;
@@ -642,15 +890,15 @@ export default function SpiritAnimal({
     return () => loop.stop();
   }, [aura]);
 
-  // Blink. Scheduled with a random gap rather than a fixed loop — a creature
-  // that blinks exactly every three seconds reads as a machine.
+  // Blink, on a random gap — a creature that blinks exactly every three seconds
+  // reads as a machine.
   useEffect(() => {
     let timer;
     let cancelled = false;
     const close = () =>
       Animated.sequence([
-        Animated.timing(blink, { toValue: 0.08, duration: 70, useNativeDriver: true }),
-        Animated.timing(blink, { toValue: 1, duration: 110, useNativeDriver: true }),
+        Animated.timing(blink, { toValue: 0.08, duration: 70 * pace, useNativeDriver: true }),
+        Animated.timing(blink, { toValue: 1, duration: 110 * pace, useNativeDriver: true }),
       ]);
     const schedule = () => {
       timer = setTimeout(() => {
@@ -659,17 +907,17 @@ export default function SpiritAnimal({
         Animated.sequence(double ? [close(), Animated.delay(90), close()] : [close()]).start(() => {
           if (!cancelled) schedule();
         });
-      }, 2200 + Math.random() * 3600);
+      }, (2200 + Math.random() * 3600) * pace);
     };
     schedule();
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, []);
+  }, [pace]);
 
-  // Listening: eyes widen a little and the head tilts. Fires when the patient
-  // starts typing, so the animal turns toward them before they finish.
+  // Listening: eyes widen and the head tilts, so the animal turns toward the
+  // patient before they finish typing.
   useEffect(() => {
     Animated.timing(wide, {
       toValue: mood === 'listening' ? 1 : 0,
@@ -689,8 +937,8 @@ export default function SpiritAnimal({
     ]).start();
   }, [mood, pulseKey]);
 
-  // Chewing. Fast and small — the head squashes on a ~4Hz cycle, which is what
-  // eating looks like without needing a jaw.
+  // Chewing: the head squashes on a ~4Hz cycle, which is what eating looks like
+  // without needing a jaw.
   useEffect(() => {
     if (expression !== 'eating') {
       chew.setValue(0);
@@ -709,22 +957,19 @@ export default function SpiritAnimal({
   const moteCount = aura ? Math.min(5, 2 + level) : 0;
   const motes = useMemo(() => Array.from({ length: moteCount }, (_, i) => i), [moteCount]);
 
-  const isOwl = spirit.id === 'owl';
-  const hasWhiskers = spirit.id === 'cat' || spirit.id === 'fox';
-  const hasLimbs = features.markings !== 'shell';
+  const hasDisc = features.fur === 'feather';
+  const hasWhiskers = spirit.id === 'cat' || spirit.id === 'fox' || spirit.id === 'otter';
+  const hasLimbs = features.markings !== 'shell' && features.markings !== 'spikes';
 
   return (
     <View style={[{ width: size, height: size, alignItems: 'center', justifyContent: 'flex-end' }, style]}>
-      {/* aura */}
       {aura && (
         <>
           <Animated.View
             pointerEvents="none"
             style={{
               position: 'absolute',
-              width: size * 0.84,
-              height: size * 0.84,
-              borderRadius: size,
+              width: size * 0.84, height: size * 0.84, borderRadius: size,
               backgroundColor: palette.aura,
               opacity: glow.interpolate({ inputRange: [0, 1], outputRange: [0.1 + level * 0.03, 0.19 + level * 0.04] }),
               transform: [{ scale: glow.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1.06] }) }],
@@ -734,9 +979,7 @@ export default function SpiritAnimal({
             pointerEvents="none"
             style={{
               position: 'absolute',
-              width: size * 0.58,
-              height: size * 0.58,
-              borderRadius: size,
+              width: size * 0.58, height: size * 0.58, borderRadius: size,
               backgroundColor: palette.aura,
               opacity: glow.interpolate({ inputRange: [0, 1], outputRange: [0.22, 0.12] }),
               transform: [{ scale: glow.interpolate({ inputRange: [0, 1], outputRange: [1.04, 0.92] }) }],
@@ -752,13 +995,9 @@ export default function SpiritAnimal({
       <View
         pointerEvents="none"
         style={{
-          position: 'absolute',
-          bottom: size * 0.035,
-          width: bodyW * 0.94,
-          height: size * 0.045,
-          borderRadius: size,
-          backgroundColor: '#2A2320',
-          opacity: 0.13,
+          position: 'absolute', bottom: size * 0.035,
+          width: bodyW * 0.94, height: size * 0.045, borderRadius: size,
+          backgroundColor: '#2A2320', opacity: 0.13,
         }}
       />
 
@@ -766,9 +1005,8 @@ export default function SpiritAnimal({
         style={{
           alignItems: 'center',
           transform: [
-            // `flip` mirrors the whole creature so it faces the way it is
-            // walking. It has to come first: a scaleX(-1) applied after the
-            // rotate would also mirror the head tilt.
+            // `flip` must come first: a scaleX(-1) applied after the rotate
+            // would also mirror the head tilt.
             { scaleX: flip ? -1 : 1 },
             { translateY: hop.interpolate({ inputRange: [0, 1], outputRange: [0, -size * 0.08] }) },
             { translateY: breathe.interpolate({ inputRange: [0, 1], outputRange: [0, -size * 0.012] }) },
@@ -777,15 +1015,13 @@ export default function SpiritAnimal({
           ],
         }}
       >
-        {/* head. Bottom-aligned in an oversized box so ears and antlers have
-            somewhere to be; the negative margin sinks it into the body. */}
+        {/* Head, in an oversized box: ears and antlers need room above, and the
+            neck (crane, deer, otter, turtle) hangs below. */}
         <Animated.View
           style={{
             width: headBoxW,
             height: headBoxH,
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            marginBottom: -head * 0.2,
+            marginBottom: -head * 0.24,
             zIndex: 2,
             transform: [
               { scaleY: chew.interpolate({ inputRange: [0, 1], outputRange: [1, 0.93] }) },
@@ -793,63 +1029,111 @@ export default function SpiritAnimal({
             ],
           }}
         >
-          <Ears kind={features.ears} head={head} boxW={headBoxW} boxH={headBoxH} palette={palette} u={u} sway={sway} />
-          <View style={{ width: head, height: head, borderRadius: head / 2, backgroundColor: palette.body }}>
-            {/* facial disc / lighter mask */}
+          {/* neck first, so it paints behind the skull */}
+          {neckH > 0 && (
+            <Mass
+              w={head * 0.36}
+              h={neckH + head * 0.32}
+              radius={head * 0.18}
+              palette={palette}
+              style={{ position: 'absolute', top: headTop + head * 0.68, left: headBoxW / 2 - head * 0.18 }}
+            />
+          )}
+
+          <Ears
+            kind={features.ears}
+            head={head}
+            boxW={headBoxW}
+            headTop={headTop}
+            palette={palette}
+            u={u}
+            sway={sway}
+            detailed={detailed}
+          />
+
+          <Mass
+            w={head}
+            h={head}
+            palette={palette}
+            style={{ position: 'absolute', top: headTop, left: (headBoxW - head) / 2 }}
+          >
+            {/* rim light along the top of the skull */}
+            {detailed && (
+              <View
+                style={{
+                  position: 'absolute', top: head * 0.02, left: head * 0.16,
+                  width: head * 0.6, height: head * 0.22, borderRadius: head,
+                  backgroundColor: '#FFFFFF', opacity: 0.16,
+                }}
+              />
+            )}
+            {/* lighter mask across the lower face */}
             <View
               style={{
-                position: 'absolute',
-                top: head * 0.15,
-                left: head * 0.1,
-                width: head * 0.8,
-                height: head * 0.72,
-                borderRadius: head / 2,
-                backgroundColor: palette.belly,
-                opacity: isOwl ? 0.8 : 0.32,
+                position: 'absolute', top: head * 0.2, left: head * 0.1,
+                width: head * 0.8, height: head * 0.68, borderRadius: head / 2,
+                backgroundColor: palette.belly, opacity: hasDisc ? 0.72 : 0.28,
               }}
             />
             <Eyes
               head={head}
               build={build}
               palette={palette}
-              blink={blink}
+              // The resting lid height rides on top of the blink, so a low-energy
+              // day reads as heavy-lidded without touching the blink itself.
+              blink={Animated.multiply(blink, lid)}
               wide={wide}
-              isOwl={isOwl}
               expression={expression}
+              slit={SLIT_PUPILS.has(spirit.id)}
+              detailed={detailed}
+              hasDisc={hasDisc}
             />
-            <Muzzle kind={features.muzzle} head={head} palette={palette} u={u} />
+            <Muzzle kind={features.muzzle} head={head} palette={palette} u={u} detailed={detailed} />
             {hasWhiskers && <Whiskers head={head} u={u} />}
-          </View>
+          </Mass>
+
+          {/* Crane's red crown sits on top of everything. */}
+          {features.markings === 'crown' && (
+            <View
+              style={{
+                position: 'absolute', top: headTop - head * 0.06,
+                left: headBoxW / 2 - head * 0.14,
+                width: head * 0.28, height: head * 0.16, borderRadius: head,
+                backgroundColor: '#C4514E',
+              }}
+            />
+          )}
         </Animated.View>
 
         {/* body, in its own oversized box so the tail is not clipped */}
         <View style={{ width: bodyBoxW, height: bodyH, alignItems: 'center' }}>
           <Tail kind={features.tail} bodyW={bodyW} bodyH={bodyH} boxW={bodyBoxW} palette={palette} sway={sway} u={u} />
-          <View
-            style={{
-              width: bodyW,
-              height: bodyH,
-              borderRadius: bodyW / 2,
-              backgroundColor: palette.body,
-              overflow: 'hidden',
-            }}
-          >
-            <View
-              style={{
-                position: 'absolute',
-                bottom: -bodyH * 0.1,
-                left: bodyW * 0.18,
-                width: bodyW * 0.64,
-                height: bodyH * 0.8,
-                borderRadius: bodyW / 2,
-                backgroundColor: palette.belly,
-                opacity: 0.85,
-              }}
-            />
-            <Markings kind={features.markings} bodyW={bodyW} bodyH={bodyH} palette={palette} u={u} />
+
+          <View style={{ width: bodyW, height: bodyH }}>
+            <Fur kind={features.fur} w={bodyW} h={bodyH} palette={palette} detailed={detailed} />
+            <Mass w={bodyW} h={bodyH} palette={palette}>
+              {/* belly, lit from below */}
+              <View
+                style={{
+                  position: 'absolute', bottom: -bodyH * 0.1, left: bodyW * 0.18,
+                  width: bodyW * 0.64, height: bodyH * 0.8, borderRadius: bodyW / 2,
+                  backgroundColor: palette.belly, opacity: 0.8,
+                }}
+              />
+              {detailed && (
+                <View
+                  style={{
+                    position: 'absolute', top: bodyH * 0.02, left: bodyW * 0.14,
+                    width: bodyW * 0.5, height: bodyH * 0.2, borderRadius: bodyW,
+                    backgroundColor: '#FFFFFF', opacity: 0.14,
+                  }}
+                />
+              )}
+              <Markings kind={features.markings} bodyW={bodyW} bodyH={bodyH} palette={palette} u={u} />
+            </Mass>
           </View>
 
-          {/* wings / arms, and the feet that stop it reading as a balloon */}
+          {/* limbs, and the feet that stop it reading as a balloon */}
           {hasLimbs &&
             [-1, 1].map((side) => (
               <Animated.View
@@ -880,8 +1164,22 @@ export default function SpiritAnimal({
                 height: bodyH * 0.14,
                 borderRadius: bodyW,
                 backgroundColor: palette.dark,
+                overflow: 'hidden',
               }}
-            />
+            >
+              {/* two toe lines — three views that do a surprising amount */}
+              {detailed &&
+                [0.36, 0.64].map((t) => (
+                  <View
+                    key={t}
+                    style={{
+                      position: 'absolute', left: bodyW * 0.26 * t, top: 0,
+                      width: Math.max(0.8, u * 0.5), height: '100%',
+                      backgroundColor: palette.deep, opacity: 0.5,
+                    }}
+                  />
+                ))}
+            </View>
           ))}
         </View>
       </Animated.View>
