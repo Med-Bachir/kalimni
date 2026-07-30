@@ -24,6 +24,19 @@ dist-check/
 .claude/settings.json
 .claude/settings.local.json
 
+# Agent skills installed by `npx skills add` (Higgsfield et al).
+#
+# Local dev tooling, not app code — but they must also stay out of the EAS
+# upload, not just out of git. EAS archives from the *git root* (to support
+# monorepos) even though eas.json lives in client/, and .claude/skills/* are
+# Windows junctions pointing into .agents/skills/*. Recreating those links in
+# EAS's temp clone needs privileges Windows does not grant by default, so the
+# build dies with `EPERM: operation not permitted, symlink ...` during
+# "Compressing project files".
+.agents/
+.claude/skills/
+skills-lock.json
+
 # OS junk
 .DS_Store
 Thumbs.db
