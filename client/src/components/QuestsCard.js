@@ -7,6 +7,7 @@ import { useI18n } from '../i18n';
 import { useCalm } from '../store/calm';
 import { questsFor, dayKey } from '../utils/calmData';
 import { tap as hapticTap, success as hapticSuccess } from '../utils/haptics';
+import { quest as soundQuest } from '../utils/sound';
 
 // Three small kindnesses, offered once a day.
 //
@@ -31,8 +32,14 @@ export default function QuestsCard({ compact }) {
 
   const onToggle = (id) => {
     const nowDone = toggleQuest(id);
-    if (nowDone) hapticSuccess();
-    else hapticTap();
+    // Only ticking on makes a sound. Un-ticking is a mis-tap being corrected,
+    // and rewarding that with the same chime would be nonsense.
+    if (nowDone) {
+      hapticSuccess();
+      soundQuest();
+    } else {
+      hapticTap();
+    }
   };
 
   return (

@@ -29,6 +29,7 @@ import CalmScreen from '../screens/patient/CalmScreen';
 import GroundingScreen from '../screens/patient/GroundingScreen';
 import BubblesScreen from '../screens/patient/BubblesScreen';
 import ReframeScreen from '../screens/patient/ReframeScreen';
+import SpiritQuizScreen from '../screens/patient/SpiritQuizScreen';
 import PatientChatTab from '../screens/patient/PatientChatTab';
 import AICompanionScreen from '../screens/patient/AICompanionScreen';
 import ProfileScreen from '../screens/patient/ProfileScreen';
@@ -202,6 +203,10 @@ export default function RootNavigator() {
       <Stack.Screen name="Grounding" component={GroundingScreen} options={{ presentation: 'fullScreenModal' }} />
       <Stack.Screen name="Bubbles" component={BubblesScreen} options={{ presentation: 'fullScreenModal' }} />
       <Stack.Screen name="Reframe" component={ReframeScreen} options={{ presentation: 'fullScreenModal' }} />
+      {/* Meeting the spirit animal. Full-screen for the same reason the
+          exercises are: the reveal is the one moment in the app that gets to
+          own the whole screen. */}
+      <Stack.Screen name="SpiritQuiz" component={SpiritQuizScreen} options={{ presentation: 'fullScreenModal' }} />
       <Stack.Screen name="Call" component={CallScreen} options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
       <Stack.Screen name="IncomingCall" component={IncomingCallScreen} options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
       <Stack.Screen name="PersonalData" component={PersonalDataScreen} />

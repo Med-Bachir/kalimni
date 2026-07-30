@@ -7,6 +7,8 @@ import { colors } from '../../theme/colors';
 import { useI18n } from '../../i18n';
 import { useCalm } from '../../store/calm';
 import { localizeDigits } from '../../utils/format';
+import { celebrate as hapticCelebrate } from '../../utils/haptics';
+import { complete as soundComplete } from '../../utils/sound';
 
 const PHASES = [
   { key: 'inhale', seconds: 4, grow: true },
@@ -34,6 +36,8 @@ export default function BreathingScreen({ navigation }) {
     if (state !== 'done' || rewarded.current) return;
     rewarded.current = true;
     addGrowth(1);
+    hapticCelebrate();
+    soundComplete();
   }, [state]);
 
   // Drive the circle: grow on inhale, hold, shrink on exhale.

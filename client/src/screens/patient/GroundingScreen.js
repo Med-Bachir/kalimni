@@ -9,6 +9,7 @@ import { useI18n } from '../../i18n';
 import { useCalm } from '../../store/calm';
 import { GROUNDING_STEPS } from '../../utils/calmData';
 import { tap as hapticTap, success as hapticSuccess, celebrate as hapticCelebrate } from '../../utils/haptics';
+import { complete as soundComplete } from '../../utils/sound';
 
 // 5-4-3-2-1 sensory grounding.
 //
@@ -68,6 +69,7 @@ export default function GroundingScreen({ navigation }) {
     rewarded.current = true; // never double-credit a re-render
     addGrowth(1);
     hapticCelebrate();
+    soundComplete();
   }, [done]);
 
   const notice = () => {

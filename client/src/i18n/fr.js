@@ -235,6 +235,9 @@ export default {
     notifications: 'Notifications',
     privacy: 'Confidentialité et sécurité',
     darkMode: 'Mode sombre',
+    sound: 'Sons de l’application',
+    spirit: 'Votre animal compagnon',
+    spiritMeet: 'Le rencontrer',
     language: 'Langue',
     emergency: "Numéros d'urgence",
     logout: 'Se déconnecter',
@@ -433,6 +436,104 @@ export default {
     specToggleHint: "Désactivé, le patient ne pourra plus discuter avec l'assistant automatique.",
     specCheckins: 'Points quotidiens',
     specNoCheckins: 'Aucun point quotidien pour le moment',
+  },
+
+  spirit: {
+    title: 'Votre animal compagnon',
+    introTitle: 'Cinq questions, puis vous rencontrez votre compagnon',
+    introBody:
+      "Ce ne sont pas des questions médicales, ni un test de votre état. Des questions sur votre tempérament : où vous vous tenez dans une pièce pleine de monde, à quoi ressemble le calme pour vous. À la fin, un animal apparaît et vous accompagne en haut de votre conversation.",
+    introNote: "Il n'y a ni bonne ni mauvaise réponse, et aucun score. Vous pouvez refaire les questions et changer de compagnon quand vous voulez.",
+    begin: 'Commencer',
+    beginAgain: 'Refaire les questions',
+    questionOf: 'Question {n} sur {total}',
+    noWrongAnswer: 'Choisissez ce qui vous ressemble le plus. Rien ici n’est évalué.',
+    revealKicker: 'Voici votre compagnon',
+    keep: 'Reste avec moi',
+    retake: 'Ça ne vous ressemble pas ? Refaire',
+    promise: 'Votre compagnon n’a pas faim, ne tombe pas malade et ne s’en va pas. Si vous disparaissez un mois, vous le retrouverez exactement où vous l’avez laissé.',
+    bandPrompt: 'Rencontrez votre animal compagnon',
+    bandPromptBody: 'Cinq questions courtes sur votre tempérament. Aucun score.',
+    listening: '{name} vous écoute…',
+    // Rotated by day, deterministic within the day — see utils/spiritData.
+    lines: {
+      0: '{name} est là. Rien ne vous est demandé maintenant.',
+      1: '{name} est assis avec vous. Prenez votre temps.',
+      2: '{name} ne vous presse pas.',
+      3: '{name} est avec vous aujourd’hui, quelle que soit la journée.',
+    },
+    quiz: {
+      gathering: {
+        q: 'Dans une pièce pleine de monde, où vous retrouvez-vous ?',
+        a: 'En retrait, à observer comment tout s’assemble',
+        b: 'À circuler entre les gens, à capter l’ambiance',
+        c: 'À côté de la personne avec qui je suis venu',
+        d: 'Dans un endroit plus calme — et je pars tôt',
+      },
+      heavy: {
+        q: 'Quand la journée devient lourde, vers quoi allez-vous ?',
+        a: 'Je veux comprendre pourquoi',
+        b: 'Je veux un endroit petit et fermé',
+        c: 'Je continue à bouger pour ne pas m’asseoir dedans',
+        d: 'Je vérifie que tout le monde va bien avant moi',
+      },
+      rest: {
+        q: 'Lequel ressemble le plus au repos, pour vous ?',
+        a: 'La pluie sur une fenêtre, la nuit',
+        b: 'Une pièce chaude, et personne qui ne demande rien',
+        c: 'Le vent dans les arbres, dehors',
+        d: 'Le silence une fois que tout le monde dort en sécurité',
+      },
+      friend: {
+        q: 'Un ami ne va pas bien. Qu’est-ce qui vient naturellement ?',
+        a: 'Je reste avec lui, sans avoir besoin de réparer quoi que ce soit',
+        b: 'Je pose des questions jusqu’à comprendre',
+        c: 'J’essaie de le faire rire',
+        d: 'Je reste près et silencieux — je le ressens trop pour parler',
+      },
+      place: {
+        q: 'Où iriez-vous, juste pour respirer ?',
+        a: 'Une forêt au crépuscule',
+        b: 'Un rivage où l’eau est lente',
+        c: 'Un toit au-dessus d’une ville allumée',
+        d: 'Une route que je n’ai jamais prise',
+      },
+    },
+    // Every description names a strength first and its cost second, and none of
+    // them is a diagnosis or a personality verdict — a sentence someone reads
+    // about themselves at 2am has to be one they can live with.
+    animals: {
+      owl: {
+        name: 'Le Hibou',
+        trait: 'Celui qui voit avant de parler',
+        body: 'Vous comprenez les choses avant de les vivre, et vous démontez ce qui vous arrive comme on démonte un problème. C’est une vraie force, et elle a un prix : l’esprit ne se calme pas tout seul. Le hibou le sait, et il veille avec vous la nuit sans jamais vous demander d’arrêter de penser.',
+      },
+      deer: {
+        name: 'Le Cerf',
+        trait: 'Celui qui ressent en premier',
+        body: 'Vous captez ce qu’il y a dans une pièce avant que quiconque le dise, et vous êtes touché par ce que les autres ne remarquent pas. La sensibilité n’est pas une faiblesse, mais elle épuise quand il n’y a pas d’endroit sûr autour. Le cerf ne vous demande pas de durcir, seulement de choisir où vous vous tenez.',
+      },
+      fox: {
+        name: 'Le Renard',
+        trait: 'Celui qui s’adapte vite',
+        body: 'Vous trouvez une sortie là où personne n’en voit, et vous vous accommodez de l’inconfortable. Mais le mouvement permanent devient parfois une façon d’éviter de s’asseoir avec ce qu’on ressent. Le renard connaît les deux chemins, et ne vous juge pas sur celui d’aujourd’hui.',
+      },
+      turtle: {
+        name: 'La Tortue',
+        trait: 'Celle qu’on ne presse pas',
+        body: 'Vous avancez lentement parce que la lenteur vous va, et vous portez votre abri partout avec vous. Se replier n’est pas fuir : c’est du repos, tant qu’il y a une porte qui se rouvre. La tortue attend avec vous qu’elle s’ouvre.',
+      },
+      cat: {
+        name: 'Le Chat',
+        trait: 'Celui qui se suffit',
+        body: 'Vous savez vous apaiser sans rien demander à personne, et vous laissez toujours une porte ouverte derrière vous. L’indépendance est une protection que vous avez apprise, et parfois elle vous protège de gens dont vous n’aviez pas besoin de vous protéger. Le chat s’assoit près de vous, sans s’approcher plus que vous ne le voulez.',
+      },
+      bear: {
+        name: 'L’Ours',
+        trait: 'Celui qui protège d’abord',
+        body: 'Vous prenez des nouvelles de tout le monde, et vous arrivez à vous en dernier, s’il reste du temps. Porter les autres est une habitude généreuse et épuisante à la fois. L’ours est assez grand pour en porter un peu à votre place, et il ne demande rien en retour.',
+      },
+    },
   },
 
   splash: {

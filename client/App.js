@@ -16,7 +16,9 @@ import { colors } from './src/theme/colors';
 import { useSettings } from './src/store/settings';
 import { useAuth } from './src/store/auth';
 import { useCalm } from './src/store/calm';
+import { useSpirit } from './src/store/spirit';
 import { ensureLayoutDirection } from './src/utils/rtl';
+import { preloadSounds } from './src/utils/sound';
 import RootNavigator from './src/navigation';
 import { navigationRef } from './src/navigation/navigationRef';
 import SplashOverlay from './src/components/SplashOverlay';
@@ -58,7 +60,14 @@ export default function App() {
       // garden is already correct the first time it renders, with no flash of
       // an empty plot.
       await useCalm.getState().hydrate();
+      // Same reasoning as the calm store: the spirit animal has to be known
+      // before the companion tab first renders, or the patient sees the "meet
+      // your spirit animal" invitation flash over an animal they already met.
+      await useSpirit.getState().hydrate();
       await useAuth.getState().boot();
+      // Decode the UI sounds now rather than on the first tap that needs one.
+      // Fire-and-forget: nothing here is awaited and nothing can throw.
+      preloadSounds();
       setReady(true);
     })();
   }, []);

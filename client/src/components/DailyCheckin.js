@@ -12,6 +12,7 @@ import { isMilestone, journeyFor } from '../utils/milestones';
 import { PopIn, Pulse } from './motion';
 import MoodSky from './MoodSky';
 import { tap as hapticTap, success as hapticSuccess, celebrate as hapticCelebrate } from '../utils/haptics';
+import { checkin as soundCheckin, milestone as soundMilestone } from '../utils/sound';
 
 // Daily check-in: mood/stress/energy/sleep on a 1-5 tap scale + optional
 // journal note. The card renders on HomeScreen and hides itself once today's
@@ -62,8 +63,13 @@ export default function DailyCheckin() {
       const milestone = isMilestone(total) ? journeyFor(total).reached : null;
       setResult({ ...feedback, milestone });
       // A milestone gets the two-beat pattern; an ordinary save gets one.
-      if (milestone) hapticCelebrate();
-      else hapticSuccess();
+      if (milestone) {
+        hapticCelebrate();
+        soundMilestone();
+      } else {
+        hapticSuccess();
+        soundCheckin();
+      }
       queryClient.invalidateQueries({ queryKey: ['checkins'] });
     },
   });

@@ -11,6 +11,7 @@ import { colors } from '../../theme/colors';
 import { useI18n } from '../../i18n';
 import { api } from '../../api/client';
 import { useCalm } from '../../store/calm';
+import { useSpirit } from '../../store/spirit';
 import { localizeDigits } from '../../utils/format';
 import { gardenFor, SKIES, skiesUnlocked } from '../../utils/calmData';
 import { tap as hapticTap } from '../../utils/haptics';
@@ -40,6 +41,7 @@ export default function CalmScreen({ navigation }) {
   const questsCompleted = useCalm((s) => s.questsCompleted);
   const sky = useCalm((s) => s.sky);
   const setSky = useCalm((s) => s.setSky);
+  const spiritId = useSpirit((s) => s.id);
 
   const { data: checkinData } = useQuery({
     queryKey: ['checkins'],
@@ -67,7 +69,10 @@ export default function CalmScreen({ navigation }) {
 
         {/* The garden */}
         <FadeIn index={1} style={{ gap: 12 }}>
-          <Garden points={points} skyId={sky} />
+          {/* The spirit animal sits in the garden once it has been met — the
+              two rewards in the Calm Corner are the same place, not two
+              separate collections to keep up with. */}
+          <Garden points={points} skyId={sky} spiritId={spiritId} />
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <View style={{ flex: 1, gap: 3 }}>
               <T w="700" size={15}>{t(`calm.tier.${tier}`)}</T>

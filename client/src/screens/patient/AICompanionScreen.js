@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Screen, T, Card, LoadingView, ErrorView } from '../../components/ui';
+import SpiritBanner from '../../components/SpiritBanner';
 import { colors } from '../../theme/colors';
 import { useI18n } from '../../i18n';
 import { api, ApiError } from '../../api/client';
@@ -234,6 +235,18 @@ export default function AICompanionScreen({ navigation }) {
             </TouchableOpacity>
           )}
         </View>
+
+        {/* The spirit animal. Below the header, not in it: the header carries
+            the "this is an automated assistant" line, and that framing must not
+            end up sharing a row with a cute animal. The spirit is company; the
+            disclaimer above it is still the first thing on the screen. */}
+        {aiEnabled && (
+          <SpiritBanner
+            compact={messages.length > 0}
+            mood={text.trim() || send.isPending ? 'listening' : 'idle'}
+            onOpenQuiz={() => navigation.navigate('SpiritQuiz')}
+          />
+        )}
 
         {/* Specialist switched the companion off */}
         {!aiEnabled ? (

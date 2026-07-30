@@ -7,6 +7,7 @@ import { colors } from '../../theme/colors';
 import { useI18n } from '../../i18n';
 import { useAuth } from '../../store/auth';
 import { useSettings } from '../../store/settings';
+import { useSpirit } from '../../store/spirit';
 import { ensureLayoutDirection } from '../../utils/rtl';
 import { api } from '../../api/client';
 
@@ -36,6 +37,9 @@ export default function ProfileScreen({ navigation }) {
 
   const themeMode = useSettings((s) => s.themeMode);
   const setTheme = useSettings((s) => s.setTheme);
+  const sound = useSettings((s) => s.sound);
+  const setSound = useSettings((s) => s.setSound);
+  const spiritId = useSpirit((s) => s.id);
 
   const switchLanguage = () => {
     const next = lang === 'ar' ? 'fr' : 'ar';
@@ -121,6 +125,28 @@ export default function ProfileScreen({ navigation }) {
               <Switch
                 value={notifications}
                 onValueChange={toggleNotifications}
+                trackColor={{ false: colors.track, true: colors.primary }}
+                thumbColor="#fff"
+              />
+            }
+          />
+          <MenuRow
+            icon="paw-outline" label={t('profile.spirit')}
+            onPress={() => navigation.navigate('SpiritQuiz')}
+            right={
+              spiritId ? (
+                <T w="600" size={13.5} color={colors.muted}>{t(`spirit.animals.${spiritId}.name`)}</T>
+              ) : (
+                <T w="600" size={13.5} color={colors.primary}>{t('profile.spiritMeet')}</T>
+              )
+            }
+          />
+          <MenuRow
+            icon="musical-note-outline" label={t('profile.sound')}
+            right={
+              <Switch
+                value={sound}
+                onValueChange={setSound}
                 trackColor={{ false: colors.track, true: colors.primary }}
                 thumbColor="#fff"
               />

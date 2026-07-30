@@ -9,6 +9,7 @@ import { useCalm } from '../../store/calm';
 import { localizeDigits } from '../../utils/format';
 import { REFRAME_CARDS } from '../../utils/calmData';
 import { tap as hapticTap, success as hapticSuccess, celebrate as hapticCelebrate } from '../../utils/haptics';
+import { complete as soundComplete } from '../../utils/sound';
 
 // Thought-trap cards.
 //
@@ -147,6 +148,7 @@ export default function ReframeScreen({ navigation }) {
     rewarded.current = true;
     addGrowth(1);
     hapticCelebrate();
+    soundComplete();
   }, [done]);
 
   const next = () => {

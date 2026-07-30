@@ -9,6 +9,7 @@ import { useI18n } from '../../i18n';
 import { useCalm } from '../../store/calm';
 import { localizeDigits } from '../../utils/format';
 import { tap as hapticTap, celebrate as hapticCelebrate } from '../../utils/haptics';
+import { pop as soundPop, complete as soundComplete } from '../../utils/sound';
 
 // Passing thoughts, as bubbles.
 //
@@ -61,6 +62,9 @@ function Bubble({ index, width, height, onGone, onPop }) {
     if (popped) return;
     setPopped(true);
     hapticTap();
+    // Quietest sound in the palette by some margin — this one can fire
+    // fourteen times in a minute and still has to sit under the room.
+    soundPop();
     onPop();
     Animated.timing(pop, {
       toValue: 1,
@@ -133,6 +137,7 @@ export default function BubblesScreen({ navigation }) {
     rewarded.current = true;
     addGrowth(1);
     hapticCelebrate();
+    soundComplete();
   }, [finished]);
 
   const handleGone = useCallback(() => setGone((g) => g + 1), []);
