@@ -30,6 +30,7 @@ import GroundingScreen from '../screens/patient/GroundingScreen';
 import BubblesScreen from '../screens/patient/BubblesScreen';
 import ReframeScreen from '../screens/patient/ReframeScreen';
 import SpiritQuizScreen from '../screens/patient/SpiritQuizScreen';
+import SpiritHomeScreen from '../screens/patient/SpiritHomeScreen';
 import PatientChatTab from '../screens/patient/PatientChatTab';
 import AICompanionScreen from '../screens/patient/AICompanionScreen';
 import ProfileScreen from '../screens/patient/ProfileScreen';
@@ -207,6 +208,9 @@ export default function RootNavigator() {
           exercises are: the reveal is the one moment in the app that gets to
           own the whole screen. */}
       <Stack.Screen name="SpiritQuiz" component={SpiritQuizScreen} options={{ presentation: 'fullScreenModal' }} />
+      {/* Where the animal lives. Reachable by long-pressing it anywhere, from
+          the garden, and from the profile. */}
+      <Stack.Screen name="SpiritHome" component={SpiritHomeScreen} />
       <Stack.Screen name="Call" component={CallScreen} options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
       <Stack.Screen name="IncomingCall" component={IncomingCallScreen} options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
       <Stack.Screen name="PersonalData" component={PersonalDataScreen} />

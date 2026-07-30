@@ -238,6 +238,7 @@ export default {
     sound: 'أصوات التطبيق',
     spirit: 'رفيقك من الطبيعة',
     spiritMeet: 'تعرّف عليه',
+    companion: 'يتجوّل معك في التطبيق',
     language: 'اللغة',
     emergency: 'أرقام الطوارئ',
     logout: 'تسجيل الخروج',
@@ -456,6 +457,23 @@ export default {
     bandPrompt: 'تعرّف على رفيقك من الطبيعة',
     bandPromptBody: 'خمسة أسئلة قصيرة عن طبعك. لا تقييم ولا درجات.',
     listening: '{name} ينصت…',
+    giveTreat: 'أطعِمه شيئاً',
+    bondBody: 'شاركت {name} {n} لقمة. لا شيء هنا يُحتسب عليك.',
+    neverHungry: '{name} لا يجوع أبداً، ولا يحزن إن غبت، ولا ينتظر منك شيئاً. الإطعام لعبة لطيفة فقط — إن تركتها شهراً تجده كما هو تماماً.',
+    treats: {
+      berry: 'توتة',
+      leaf: 'ورقة',
+      honey: 'قطرة عسل',
+      flower: 'زهرة',
+    },
+    // What the animal "says" when tapped. Deliberately never a request: it
+    // does not want anything from you, and it never asks you to come back.
+    chatter: {
+      0: 'يميل {name} برأسه نحوك.',
+      1: 'صوت صغير… يبدو أنه سعيد.',
+      2: 'يدور {name} حول نفسه مرة.',
+      3: 'يجلس بجانبك بلا سبب.',
+    },
     // Rotated by day, deterministic within the day — see utils/spiritData.
     lines: {
       0: '{name} هنا. لا شيء مطلوب منك الآن.',

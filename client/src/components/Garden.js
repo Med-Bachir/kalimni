@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Animated, Easing } from 'react-native';
+import { View, Pressable, Animated, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import SpiritAnimal from './SpiritAnimal';
 import { gardenFor, skyById, PLANT_GREENS, BLOOMS, GARDEN_CAPACITY } from '../utils/calmData';
@@ -738,7 +738,7 @@ function Critter({ index, width, night, color }) {
  * collectible backdrop the patient has chosen. `spiritId`, when set, sits the
  * patient's spirit animal on the near edge of the bed.
  */
-export default function Garden({ points = 0, skyId = 'dawn', spiritId, style }) {
+export default function Garden({ points = 0, skyId = 'dawn', spiritId, onSpiritPress, spiritPulse = 0, style }) {
   // Measured, not passed in: the scatter positions (stars, pebbles, hills,
   // critter paths) are all fractions of the canvas width, and a hard-coded
   // guess puts half of them off-screen on a tablet. The default is only used
@@ -879,11 +879,18 @@ export default function Garden({ points = 0, skyId = 'dawn', spiritId, style }) 
           ))}
         </View>
 
-        {/* the spirit animal, sitting on the near edge of the bed */}
+        {/* The spirit animal, on the near edge of the bed. Tappable when the
+            caller gives it somewhere to go — the garden is where most people
+            will notice it is a thing you can visit. */}
         {spiritId ? (
-          <View pointerEvents="none" style={{ position: 'absolute', right: 12, bottom: GROUND * 0.16 }}>
-            <SpiritAnimal id={spiritId} size={62} points={points} aura={false} />
-          </View>
+          <Pressable
+            onPress={onSpiritPress}
+            disabled={!onSpiritPress}
+            hitSlop={8}
+            style={{ position: 'absolute', right: 12, bottom: GROUND * 0.16 }}
+          >
+            <SpiritAnimal id={spiritId} size={68} points={points} pulseKey={spiritPulse} aura={false} />
+          </Pressable>
         ) : null}
 
         {/* something alive moving through it */}

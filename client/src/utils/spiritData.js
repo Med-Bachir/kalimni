@@ -26,42 +26,42 @@ export const SPIRITS = [
     // the observer — thinks its way around everything, including itself
     palette: { body: '#A98D6F', dark: '#8A7057', belly: '#EBDCC6', accent: '#C6AC8B', aura: '#DDBB94' },
     features: { ears: 'tufts', muzzle: 'beak', tail: 'fan', markings: 'chest' },
-    build: { headRatio: 0.62, bodyRatio: 0.72, eyeRatio: 0.19, eyeGap: 0.24 },
+    build: { headRatio: 0.68, bodyRatio: 0.72, eyeRatio: 0.22, eyeGap: 0.25 },
   },
   {
     id: 'deer',
     // the sensitive one — feels everything first, and a little too much
     palette: { body: '#C79A72', dark: '#A87C57', belly: '#F0DEC8', accent: '#E8CBA8', aura: '#E8A87C' },
     features: { ears: 'long', muzzle: 'snout', tail: 'tuft', markings: 'spots' },
-    build: { headRatio: 0.52, bodyRatio: 0.62, eyeRatio: 0.15, eyeGap: 0.2 },
+    build: { headRatio: 0.6, bodyRatio: 0.62, eyeRatio: 0.19, eyeGap: 0.22 },
   },
   {
     id: 'fox',
     // the adaptive one — quick, curious, rarely still
     palette: { body: '#D98E5A', dark: '#B96F3E', belly: '#F5E3D0', accent: '#F0B183', aura: '#E8A87C' },
     features: { ears: 'pointed', muzzle: 'snout', tail: 'bushy', markings: 'none' },
-    build: { headRatio: 0.56, bodyRatio: 0.66, eyeRatio: 0.14, eyeGap: 0.22 },
+    build: { headRatio: 0.63, bodyRatio: 0.66, eyeRatio: 0.19, eyeGap: 0.23 },
   },
   {
     id: 'turtle',
     // the steady one — slow on purpose, and carries its own shelter
     palette: { body: '#7FB08A', dark: '#5E9370', belly: '#DDEBDD', accent: '#A5C8AF', aura: '#8FBCCB' },
     features: { ears: 'none', muzzle: 'round', tail: 'stub', markings: 'shell' },
-    build: { headRatio: 0.42, bodyRatio: 0.9, eyeRatio: 0.12, eyeGap: 0.18 },
+    build: { headRatio: 0.5, bodyRatio: 0.9, eyeRatio: 0.17, eyeGap: 0.2 },
   },
   {
     id: 'cat',
     // the self-reliant one — soothes itself, keeps a door open behind it
     palette: { body: '#8D93A8', dark: '#6F7690', belly: '#E4E7EF', accent: '#B0B5C6', aura: '#B9B1DC' },
     features: { ears: 'pointed', muzzle: 'round', tail: 'curl', markings: 'stripes' },
-    build: { headRatio: 0.56, bodyRatio: 0.64, eyeRatio: 0.15, eyeGap: 0.22 },
+    build: { headRatio: 0.63, bodyRatio: 0.64, eyeRatio: 0.2, eyeGap: 0.23 },
   },
   {
     id: 'bear',
     // the protector — checks on everyone else before it checks on itself
     palette: { body: '#9C8574', dark: '#7C6857', belly: '#E9DCCB', accent: '#BBA391', aura: '#DDBB94' },
     features: { ears: 'round', muzzle: 'round', tail: 'stub', markings: 'none' },
-    build: { headRatio: 0.6, bodyRatio: 0.82, eyeRatio: 0.13, eyeGap: 0.21 },
+    build: { headRatio: 0.66, bodyRatio: 0.82, eyeRatio: 0.18, eyeGap: 0.22 },
   },
 ];
 

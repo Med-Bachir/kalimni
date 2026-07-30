@@ -18,6 +18,7 @@ const empty = {
   id: null,          // spirit id, null until the quiz is finished
   discoveredAt: null, // ISO string, for the "with you since" line
   answers: [],       // kept so a retake can pre-fill, and so the result is explainable
+  bond: 0,           // treats shared, lifetime
 };
 
 export const useSpirit = create((set, get) => ({
@@ -35,6 +36,7 @@ export const useSpirit = create((set, get) => ({
           id: saved.id,
           discoveredAt: typeof saved.discoveredAt === 'string' ? saved.discoveredAt : null,
           answers: Array.isArray(saved.answers) ? saved.answers : [],
+          bond: Number(saved.bond) || 0,
         });
       }
     } catch {
@@ -44,8 +46,25 @@ export const useSpirit = create((set, get) => ({
   },
 
   persist: () => {
-    const { id, discoveredAt, answers } = get();
-    AsyncStorage.setItem(KEY, JSON.stringify({ id, discoveredAt, answers })).catch(() => {});
+    const { id, discoveredAt, answers, bond } = get();
+    AsyncStorage.setItem(KEY, JSON.stringify({ id, discoveredAt, answers, bond })).catch(() => {});
+  },
+
+  /**
+   * Share a treat. Additive only, and there is deliberately no counterpart:
+   * no hunger, no timer since the last feed, no decay, and nothing anywhere
+   * that can make the animal hungry, sad or gone.
+   *
+   * This is the same rule as store/calm.js and it matters more here, not less.
+   * A creature that needs feeding is a creature you can fail, and a daily
+   * obligation aimed at someone who is already struggling to get out of bed is
+   * not a companion — it is one more thing they are letting down. Feeding is a
+   * toy, like the bubbles: available whenever, worth nothing if skipped.
+   */
+  feed: () => {
+    set({ bond: get().bond + 1 });
+    get().persist();
+    return get().bond;
   },
 
   /**

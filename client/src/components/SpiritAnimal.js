@@ -197,9 +197,14 @@ function Muzzle({ kind, head, palette, u }) {
   );
 }
 
-function Eyes({ head, build, palette, blink, wide, isOwl }) {
+function Eyes({ head, build, palette, blink, wide, isOwl, expression }) {
   const eyeD = head * build.eyeRatio * 1.7;
   const gap = head * build.eyeGap;
+  // Eyes sit *below* the middle of the head. That is the single strongest cue
+  // in the whole drawing: high eyes read as adult, low eyes read as infant, and
+  // "cute" is mostly a pile of infant proportions.
+  const eyeTop = head * 0.36;
+  const smiling = expression === 'happy' || expression === 'eating';
 
   return (
     <>
@@ -208,7 +213,7 @@ function Eyes({ head, build, palette, blink, wide, isOwl }) {
           key={side}
           style={{
             position: 'absolute',
-            top: head * 0.33,
+            top: eyeTop,
             left: head / 2 + side * gap - eyeD / 2,
             alignItems: 'center',
             justifyContent: 'center',
@@ -219,47 +224,80 @@ function Eyes({ head, build, palette, blink, wide, isOwl }) {
           {isOwl && (
             <Blob w={eyeD * 1.75} h={eyeD * 1.75} color={palette.belly} style={{ position: 'absolute' }} />
           )}
-          <Animated.View
-            style={{
-              width: eyeD,
-              height: eyeD,
-              borderRadius: eyeD / 2,
-              backgroundColor: EYE,
-              // Blink is a vertical squash, not an eyelid: one animated value,
-              // and it reads correctly on all six animals.
-              transform: [
-                { scaleY: blink },
-                { scale: wide.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] }) },
-              ],
-            }}
-          >
-            <View
+
+          {smiling ? (
+            // A happy eye is an upward arc. Drawn as a ring clipped to its top
+            // half — RN has no arc primitive, and this costs two views.
+            <View style={{ width: eyeD * 1.2, height: eyeD * 0.6, overflow: 'hidden', alignItems: 'center' }}>
+              <View
+                style={{
+                  width: eyeD * 1.2,
+                  height: eyeD * 1.2,
+                  borderRadius: eyeD,
+                  borderWidth: Math.max(1.4, eyeD * 0.2),
+                  borderColor: EYE,
+                  backgroundColor: 'transparent',
+                }}
+              />
+            </View>
+          ) : (
+            <Animated.View
               style={{
-                position: 'absolute',
-                top: eyeD * 0.16,
-                left: eyeD * 0.2,
-                width: eyeD * 0.32,
-                height: eyeD * 0.32,
-                borderRadius: eyeD,
-                backgroundColor: SHINE,
+                width: eyeD,
+                height: eyeD,
+                borderRadius: eyeD / 2,
+                backgroundColor: EYE,
+                // Blink is a vertical squash, not an eyelid: one animated value,
+                // and it reads correctly on all six animals.
+                transform: [
+                  { scaleY: blink },
+                  { scale: wide.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] }) },
+                ],
               }}
-            />
-          </Animated.View>
+            >
+              {/* Two catchlights, not one. The big one is the light source; the
+                  small opposite one is what makes the eye look wet. */}
+              <View
+                style={{
+                  position: 'absolute',
+                  top: eyeD * 0.14,
+                  left: eyeD * 0.18,
+                  width: eyeD * 0.36,
+                  height: eyeD * 0.36,
+                  borderRadius: eyeD,
+                  backgroundColor: SHINE,
+                }}
+              />
+              <View
+                style={{
+                  position: 'absolute',
+                  bottom: eyeD * 0.18,
+                  right: eyeD * 0.16,
+                  width: eyeD * 0.17,
+                  height: eyeD * 0.17,
+                  borderRadius: eyeD,
+                  backgroundColor: SHINE,
+                  opacity: 0.7,
+                }}
+              />
+            </Animated.View>
+          )}
         </View>
       ))}
-      {/* Blush. Barely visible, and the thing that stops the face reading cold. */}
+      {/* Blush, sitting just under the eyes. The thing that stops the face
+          reading cold — and it warms up when the animal is pleased. */}
       {[-1, 1].map((side) => (
         <View
           key={`cheek${side}`}
           style={{
             position: 'absolute',
-            top: head * 0.52,
-            left: head / 2 + side * head * 0.32 - head * 0.09,
-            width: head * 0.18,
-            height: head * 0.1,
+            top: eyeTop + eyeD * 0.9,
+            left: head / 2 + side * head * 0.33 - head * 0.1,
+            width: head * 0.2,
+            height: head * 0.11,
             borderRadius: head,
             backgroundColor: '#E2A0A0',
-            opacity: 0.32,
+            opacity: smiling ? 0.55 : 0.34,
           }}
         />
       ))}
@@ -535,10 +573,12 @@ export default function SpiritAnimal({
   id,
   size = 96,
   mood = 'idle',
+  expression = 'idle',
   aura = true,
   points = 0,
   stage,
   pulseKey = 0,
+  flip = false,
   style,
 }) {
   const spirit = spiritById(id);
@@ -561,6 +601,7 @@ export default function SpiritAnimal({
   const wide = useRef(new Animated.Value(0)).current;
   const hop = useRef(new Animated.Value(0)).current;
   const glow = useRef(new Animated.Value(0)).current;
+  const chew = useRef(new Animated.Value(0)).current;
 
   // Breath. ~4.4s a cycle: slower than a resting human breath, which is the
   // point — an animal breathing slightly slower than you is the oldest
@@ -648,6 +689,23 @@ export default function SpiritAnimal({
     ]).start();
   }, [mood, pulseKey]);
 
+  // Chewing. Fast and small — the head squashes on a ~4Hz cycle, which is what
+  // eating looks like without needing a jaw.
+  useEffect(() => {
+    if (expression !== 'eating') {
+      chew.setValue(0);
+      return undefined;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(chew, { toValue: 1, duration: 120, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(chew, { toValue: 0, duration: 120, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [expression]);
+
   const moteCount = aura ? Math.min(5, 2 + level) : 0;
   const motes = useMemo(() => Array.from({ length: moteCount }, (_, i) => i), [moteCount]);
 
@@ -708,6 +766,10 @@ export default function SpiritAnimal({
         style={{
           alignItems: 'center',
           transform: [
+            // `flip` mirrors the whole creature so it faces the way it is
+            // walking. It has to come first: a scaleX(-1) applied after the
+            // rotate would also mirror the head tilt.
+            { scaleX: flip ? -1 : 1 },
             { translateY: hop.interpolate({ inputRange: [0, 1], outputRange: [0, -size * 0.08] }) },
             { translateY: breathe.interpolate({ inputRange: [0, 1], outputRange: [0, -size * 0.012] }) },
             { scale: breathe.interpolate({ inputRange: [0, 1], outputRange: [1, 1.022] }) },
@@ -717,7 +779,7 @@ export default function SpiritAnimal({
       >
         {/* head. Bottom-aligned in an oversized box so ears and antlers have
             somewhere to be; the negative margin sinks it into the body. */}
-        <View
+        <Animated.View
           style={{
             width: headBoxW,
             height: headBoxH,
@@ -725,6 +787,10 @@ export default function SpiritAnimal({
             justifyContent: 'flex-end',
             marginBottom: -head * 0.2,
             zIndex: 2,
+            transform: [
+              { scaleY: chew.interpolate({ inputRange: [0, 1], outputRange: [1, 0.93] }) },
+              { scaleX: chew.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] }) },
+            ],
           }}
         >
           <Ears kind={features.ears} head={head} boxW={headBoxW} boxH={headBoxH} palette={palette} u={u} sway={sway} />
@@ -742,11 +808,19 @@ export default function SpiritAnimal({
                 opacity: isOwl ? 0.8 : 0.32,
               }}
             />
-            <Eyes head={head} build={build} palette={palette} blink={blink} wide={wide} isOwl={isOwl} />
+            <Eyes
+              head={head}
+              build={build}
+              palette={palette}
+              blink={blink}
+              wide={wide}
+              isOwl={isOwl}
+              expression={expression}
+            />
             <Muzzle kind={features.muzzle} head={head} palette={palette} u={u} />
             {hasWhiskers && <Whiskers head={head} u={u} />}
           </View>
-        </View>
+        </Animated.View>
 
         {/* body, in its own oversized box so the tail is not clipped */}
         <View style={{ width: bodyBoxW, height: bodyH, alignItems: 'center' }}>

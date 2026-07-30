@@ -71,8 +71,14 @@ export default function CalmScreen({ navigation }) {
         <FadeIn index={1} style={{ gap: 12 }}>
           {/* The spirit animal sits in the garden once it has been met — the
               two rewards in the Calm Corner are the same place, not two
-              separate collections to keep up with. */}
-          <Garden points={points} skyId={sky} spiritId={spiritId} />
+              separate collections to keep up with. Tapping it goes to its own
+              screen, where it can be fed. */}
+          <Garden
+            points={points}
+            skyId={sky}
+            spiritId={spiritId}
+            onSpiritPress={() => { hapticTap(); navigation.navigate('SpiritHome'); }}
+          />
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <View style={{ flex: 1, gap: 3 }}>
               <T w="700" size={15}>{t(`calm.tier.${tier}`)}</T>

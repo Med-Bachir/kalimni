@@ -39,6 +39,8 @@ export default function ProfileScreen({ navigation }) {
   const setTheme = useSettings((s) => s.setTheme);
   const sound = useSettings((s) => s.sound);
   const setSound = useSettings((s) => s.setSound);
+  const companion = useSettings((s) => s.companion);
+  const setCompanion = useSettings((s) => s.setCompanion);
   const spiritId = useSpirit((s) => s.id);
 
   const switchLanguage = () => {
@@ -132,7 +134,8 @@ export default function ProfileScreen({ navigation }) {
           />
           <MenuRow
             icon="paw-outline" label={t('profile.spirit')}
-            onPress={() => navigation.navigate('SpiritQuiz')}
+            // Already met? Go to where it lives. Not yet? Go and meet it.
+            onPress={() => navigation.navigate(spiritId ? 'SpiritHome' : 'SpiritQuiz')}
             right={
               spiritId ? (
                 <T w="600" size={13.5} color={colors.muted}>{t(`spirit.animals.${spiritId}.name`)}</T>
@@ -141,6 +144,19 @@ export default function ProfileScreen({ navigation }) {
               )
             }
           />
+          {spiritId ? (
+            <MenuRow
+              icon="footsteps-outline" label={t('profile.companion')}
+              right={
+                <Switch
+                  value={companion}
+                  onValueChange={setCompanion}
+                  trackColor={{ false: colors.track, true: colors.primary }}
+                  thumbColor="#fff"
+                />
+              }
+            />
+          ) : null}
           <MenuRow
             icon="musical-note-outline" label={t('profile.sound')}
             right={

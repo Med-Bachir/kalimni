@@ -22,6 +22,7 @@ import { preloadSounds } from './src/utils/sound';
 import RootNavigator from './src/navigation';
 import { navigationRef } from './src/navigation/navigationRef';
 import SplashOverlay from './src/components/SplashOverlay';
+import FloatingSpirit from './src/components/FloatingSpirit';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -87,6 +88,12 @@ export default function App() {
         <NavigationContainer ref={navigationRef} theme={navTheme()}>
           <StatusBar style={themeMode === 'dark' ? 'light' : 'dark'} backgroundColor={colors.bg} />
           <RootNavigator />
+          {/* The spirit animal, loose over the whole app. Mounted here rather
+              than inside a screen so it survives navigation instead of being
+              re-mounted (and teleported back to its starting corner) on every
+              push. It hides itself on the screens where attention is not
+              optional — see the HIDE_ON list in the component. */}
+          {splashDone && <FloatingSpirit />}
           {/* Sits above the navigator and removes itself. Mounting it here
               rather than as a route means it covers whichever screen the app
               restored to, including a deep link or a resumed call. */}

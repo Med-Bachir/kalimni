@@ -238,6 +238,7 @@ export default {
     sound: 'Sons de l’application',
     spirit: 'Votre animal compagnon',
     spiritMeet: 'Le rencontrer',
+    companion: 'Il vous suit dans l’application',
     language: 'Langue',
     emergency: "Numéros d'urgence",
     logout: 'Se déconnecter',
@@ -456,6 +457,23 @@ export default {
     bandPrompt: 'Rencontrez votre animal compagnon',
     bandPromptBody: 'Cinq questions courtes sur votre tempérament. Aucun score.',
     listening: '{name} vous écoute…',
+    giveTreat: 'Donnez-lui quelque chose',
+    bondBody: 'Vous avez partagé {n} gourmandises avec {name}. Rien ici ne vous est compté.',
+    neverHungry: '{name} n’a jamais faim, ne devient jamais triste si vous partez, et n’attend rien de vous. Nourrir est un simple jeu — laissez-le un mois et vous le retrouverez exactement pareil.',
+    treats: {
+      berry: 'Baie',
+      leaf: 'Feuille',
+      honey: 'Miel',
+      flower: 'Fleur',
+    },
+    // What the animal "says" when tapped. Deliberately never a request: it
+    // does not want anything from you, and it never asks you to come back.
+    chatter: {
+      0: '{name} penche la tête vers vous.',
+      1: 'Un petit bruit… il a l’air content.',
+      2: '{name} fait un tour sur lui-même.',
+      3: 'Il s’assoit près de vous, sans raison.',
+    },
     // Rotated by day, deterministic within the day — see utils/spiritData.
     lines: {
       0: '{name} est là. Rien ne vous est demandé maintenant.',
