@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, ScrollView, Pressable } from 'react-native';
+import { View, ScrollView, Pressable, Image } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen, T, Button, BackButton, Card } from '../../components/ui';
 import { FadeIn, PopIn, Pulse } from '../../components/motion';
@@ -9,6 +10,7 @@ import { useI18n } from '../../i18n';
 import { useSpirit } from '../../store/spirit';
 import { useCalm } from '../../store/calm';
 import { SPIRIT_QUIZ, spiritById } from '../../utils/spiritData';
+import { habitatFor } from '../../utils/spiritArt';
 import { localizeDigits } from '../../utils/format';
 import { tap as hapticTap, celebrate as hapticCelebrate } from '../../utils/haptics';
 import { reveal as soundReveal } from '../../utils/sound';
@@ -141,17 +143,53 @@ export default function SpiritQuizScreen({ navigation }) {
     return (
       <Screen edges={['top', 'bottom']}>
         <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 24, gap: 18 }} showsVerticalScrollIndicator={false}>
-          <View style={{ alignItems: 'center', gap: 14, paddingTop: 12 }}>
+          <View style={{ alignItems: 'center', gap: 12, paddingTop: 8 }}>
             <T w="600" size={13} color={colors.faint}>{t('spirit.revealKicker')}</T>
-            <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-              <Pulse size={190} color={spirit.palette.aura} />
-              <PopIn>
-                <SpiritAnimal id={spirit.id} size={190} mood="happy" points={growth} />
-              </PopIn>
+
+            {/* The animal standing in its own place. The scene is painted art
+                (utils/spiritArt) because atmospheric haze is the one thing the
+                View-drawn approach genuinely cannot do; the animal on top of it
+                is still the same code-drawn creature as everywhere else, still
+                breathing and blinking. A static picture of an animal is a
+                picture — this has to be company. */}
+            <View
+              style={{
+                width: '100%',
+                height: 248,
+                borderRadius: 22,
+                overflow: 'hidden',
+                backgroundColor: colors.bgSoft,
+              }}
+            >
+              <Image
+                source={habitatFor(spirit.id)}
+                style={{ position: 'absolute', width: '100%', height: '100%' }}
+                resizeMode="cover"
+              />
+              {/* Lifts the top, settles the base — keeps the creature from
+                  disappearing into a scene of similar value. */}
+              <LinearGradient
+                pointerEvents="none"
+                colors={['rgba(255,255,255,.14)', 'rgba(255,255,255,0)', 'rgba(20,32,40,.18)']}
+                locations={[0, 0.55, 1]}
+                style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
+              />
+              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 10 }}>
+                <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                  <Pulse size={170} color={spirit.palette.aura} />
+                  <PopIn>
+                    <SpiritAnimal id={spirit.id} size={170} mood="happy" points={growth} />
+                  </PopIn>
+                </View>
+              </View>
             </View>
-            <PopIn delay={220} style={{ alignItems: 'center', gap: 8 }}>
+
+            <PopIn delay={220} style={{ alignItems: 'center', gap: 7 }}>
               <T w="700" size={26}>{t(`spirit.animals.${spirit.id}.name`)}</T>
               <T w="600" size={14} color={colors.primary}>{t(`spirit.animals.${spirit.id}.trait`)}</T>
+              <T size={12} color={colors.faint} style={{ marginTop: 2 }}>
+                {t('spirit.habitat', { name: t(`spirit.animals.${spirit.id}.name`) })}
+              </T>
             </PopIn>
           </View>
 

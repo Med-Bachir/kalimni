@@ -449,6 +449,7 @@ export default {
     questionOf: 'Question {n} sur {total}',
     noWrongAnswer: 'Choisissez ce qui vous ressemble le plus. Rien ici n’est évalué.',
     revealKicker: 'Voici votre compagnon',
+    habitat: 'Là où {name} va respirer',
     keep: 'Reste avec moi',
     retake: 'Ça ne vous ressemble pas ? Refaire',
     promise: 'Votre compagnon n’a pas faim, ne tombe pas malade et ne s’en va pas. Si vous disparaissez un mois, vous le retrouverez exactement où vous l’avez laissé.',
