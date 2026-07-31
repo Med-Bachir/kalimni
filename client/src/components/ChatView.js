@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, FlatList, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, I18nManager, Alert,
+  View, FlatList, TextInput, TouchableOpacity, KeyboardAvoidingView, I18nManager, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -284,9 +284,21 @@ export default function ChatView({ conversationId, onBack, navigation }) {
   };
 
   return (
+    // `padding` on BOTH platforms, deliberately.
+    //
+    // Android used to pass `undefined` here and lean on
+    // `softwareKeyboardLayoutMode: "resize"` in app.json. That stopped working
+    // when the app moved to edge-to-edge (default on Android since SDK 54,
+    // targetSdk 35): the window no longer resizes behind the keyboard, so with
+    // no behavior set this view did nothing at all and the keyboard covered the
+    // composer and the last few messages.
+    //
+    // `padding` is safe on both because KeyboardAvoidingView measures its own
+    // frame against the keyboard frame — where the window DOES still resize it
+    // computes an offset of zero rather than double-padding.
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: colors.bgChat }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior="padding"
     >
       {/* Header */}
       <View style={{
@@ -359,6 +371,9 @@ export default function ChatView({ conversationId, onBack, navigation }) {
         contentContainerStyle={{ padding: 16, paddingBottom: 8 }}
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
         onLayout={() => listRef.current?.scrollToEnd({ animated: false })}
+        // Without this the first tap while the keyboard is open only dismisses
+        // it — send needs a second press.
+        keyboardShouldPersistTaps="handled"
       />
 
       {/* Composer / recording bar */}

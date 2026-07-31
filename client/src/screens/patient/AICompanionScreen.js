@@ -1,16 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, FlatList, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform,
+  View, FlatList, TextInput, TouchableOpacity, KeyboardAvoidingView,
   I18nManager, Linking, Alert, Animated, Easing,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Screen, T, Card, LoadingView, ErrorView } from '../../components/ui';
 import SpiritInvite from '../../components/SpiritInvite';
+import SpiritAnimal from '../../components/SpiritAnimal';
 import { colors } from '../../theme/colors';
 import { useI18n } from '../../i18n';
 import { api, ApiError } from '../../api/client';
 import { formatTime } from '../../utils/format';
+import { useSpirit } from '../../store/spirit';
+import { useSpiritEnergy } from '../../hooks/useSpiritEnergy';
 
 // AI Support Companion chat. The server does the heavy lifting (safety gate,
 // RAG, crisis handling); this screen renders the thread, suggestion cards and
@@ -65,6 +68,9 @@ export default function AICompanionScreen({ navigation }) {
   const [text, setText] = useState('');
   const [sendError, setSendError] = useState(null); // 'rate' | 'unavailable'
 
+  const spiritId = useSpirit((s) => s.id);
+  const spiritEnergy = useSpiritEnergy(!!spiritId);
+
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['aiHistory'],
     queryFn: () => api('/ai/history'),
@@ -93,6 +99,17 @@ export default function AICompanionScreen({ navigation }) {
   const resources = data?.resources;
   const aiEnabled = data?.aiEnabled !== false;
   const crisisHold = data?.conversation?.status === 'crisis_hold';
+
+  // What the animal in the header is doing.
+  //
+  // Driven off the two states the screen already tracks, so there is no extra
+  // timer and no way for it to get stuck: the reply is in flight, or there is
+  // a draft in the box, or neither.
+  //
+  // Order matters — a reply in flight wins over a draft, because someone who
+  // starts typing their next thought while waiting should still see the
+  // companion working rather than the animal snapping back to attention.
+  const petMood = send.isPending ? 'thinking' : text.trim() ? 'listening' : 'idle';
 
   const submit = (value) => {
     const body = String(value ?? text).trim();
@@ -218,13 +235,37 @@ export default function AICompanionScreen({ navigation }) {
 
   return (
     <Screen edges={['top']} bg={colors.bgChat}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      {/* `padding` on both platforms — see the note in components/ChatView.js.
+          Android's window no longer resizes behind the keyboard under
+          edge-to-edge, so `undefined` here meant this did nothing at all. */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         {/* Header */}
         <View style={{
-          flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card,
+          flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card,
           paddingHorizontal: 18, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border,
         }}>
           <CompanionAvatar />
+
+          {/* The spirit animal, lying down beside the companion.
+
+              It is not a second avatar and it is not decoration: it is the only
+              thing on this screen that reacts while you are mid-sentence. Ears
+              up and eyes wide the moment you start typing, head tilted away
+              while the companion is composing a reply, dozing the rest of the
+              time. A room with something alive in it feels different from a
+              room with a text box in it. */}
+          {spiritId && (
+            <SpiritAnimal
+              id={spiritId}
+              size={44}
+              pose="lie"
+              mood={petMood}
+              energy={spiritEnergy ?? 3}
+              aura={false}
+              style={{ marginTop: 2 }}
+            />
+          )}
+
           <View style={{ flex: 1, gap: 1 }}>
             <T w="700" size={16}>{t('companion.title')}</T>
             <T size={11.5} color={colors.faint} numberOfLines={1}>{t('companion.disclaimer')}</T>
@@ -300,6 +341,7 @@ export default function AICompanionScreen({ navigation }) {
                 onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
                 onLayout={() => listRef.current?.scrollToEnd({ animated: false })}
                 ListFooterComponent={send.isPending ? <TypingDots /> : null}
+                keyboardShouldPersistTaps="handled"
               />
             )}
 

@@ -784,8 +784,9 @@ function Mote({ size, color, index, delay }) {
 /**
  * @param id         spirit id from utils/spiritData
  * @param size       box size in px; everything scales off it
- * @param mood       'idle' | 'listening' | 'happy'
+ * @param mood       'idle' | 'listening' | 'thinking' | 'happy'
  * @param expression 'idle' | 'happy' | 'eating'
+ * @param pose       'stand' | 'walk' | 'lie'
  * @param aura       show the glow and the drifting motes
  * @param points     growth points, for the stage (or pass `stage` directly)
  * @param pulseKey   change this to make the animal hop (e.g. on tap)
@@ -802,6 +803,7 @@ export default function SpiritAnimal({
   stage,
   pulseKey = 0,
   flip = false,
+  pose = 'stand',
   style,
 }) {
   const spirit = spiritById(id);
@@ -819,6 +821,25 @@ export default function SpiritAnimal({
   const vigour = Math.max(1, Math.min(5, Number(energy) || 3));
   const pace = 1 + (3 - vigour) * 0.14; // >1 = slower, on the harder days
   const lidRest = vigour <= 2 ? 0.9 : 1; // a fraction heavy-lidded, not sad
+
+  const walking = pose === 'walk';
+  const lying = pose === 'lie';
+
+  // AMPLITUDE FLOOR — why idle motion is not purely proportional to `size`.
+  //
+  // Everything here used to scale off `size` alone. At the reveal screen's
+  // 170px that is fine; at the 66px the roaming companion renders at, a breath
+  // of `size * 0.012` is 0.8px and a scale of 1.022 is 1.5px. Both round away
+  // to nothing on a real display, which is why the companion was reported as
+  // frozen — it genuinely was, visually, even though every loop was running.
+  //
+  // So motion gets a floor in device pixels. The animal breathes by at least
+  // ~1.6px whatever size it is drawn at, and the small renders are the ones
+  // that needed it: those are the ambient ones nobody is looking straight at,
+  // where "is that alive?" has to be answerable from the corner of an eye.
+  const lift = Math.max(1.6, size * 0.02);  // vertical travel of the breath, px
+  const SWELL = 1.03;                       // scale at the top of the breath
+  const step = Math.max(2.2, size * 0.06);  // how far a foot travels in a stride
 
   // Fine detail costs views and is invisible below about 60px, where the animal
   // is a thumbnail. One flag gates all of it.
@@ -844,6 +865,48 @@ export default function SpiritAnimal({
   const glow = useRef(new Animated.Value(0)).current;
   const chew = useRef(new Animated.Value(0)).current;
   const lid = useRef(new Animated.Value(1)).current;
+  const stride = useRef(new Animated.Value(0)).current;
+  const settle = useRef(new Animated.Value(lying ? 1 : 0)).current;
+  const think = useRef(new Animated.Value(0)).current;
+
+  // THE WALK CYCLE.
+  //
+  // One value looping 0 -> 1 per stride, and every limb reads it through a
+  // different interpolation. That is the whole trick: a four-point output range
+  // approximates a sine closely enough for a 10px foot, and antiphase is just
+  // the same curve with the signs swapped, so both legs come off one driver
+  // with no phase-shifted clocks to keep in sync.
+  //
+  // The legs alone are not what sells it. What sells it is that the body dips
+  // twice per stride (once per footfall) and rolls a degree or so side to side
+  // — weight transferring between feet. Without that the animal reads as a
+  // sticker with scissoring legs.
+  useEffect(() => {
+    if (!walking) {
+      stride.stopAnimation(() => stride.setValue(0));
+      return undefined;
+    }
+    const loop = Animated.loop(
+      Animated.timing(stride, {
+        toValue: 1,
+        duration: 620 * pace,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [walking, pace]);
+
+  // Lying down and getting up, over about half a second.
+  useEffect(() => {
+    Animated.timing(settle, {
+      toValue: lying ? 1 : 0,
+      duration: 480,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [lying]);
 
   // Eyelids settle to their resting height over a second, so a check-in saved
   // while the animal is on screen changes it gently rather than snapping.
@@ -923,6 +986,23 @@ export default function SpiritAnimal({
       toValue: mood === 'listening' ? 1 : 0,
       duration: 320,
       easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [mood]);
+
+  // Thinking: the opposite tilt from listening, and slower.
+  //
+  // Curiosity leans IN — toward whoever is talking. Thinking leans AWAY and up,
+  // because attention has gone somewhere else. Two poses that are mirror images
+  // of each other read instantly as two different states, which is the whole
+  // reason the header animal is worth having: it is the only thing on that
+  // screen that shows the difference between "I'm listening" and "I'm working
+  // on it" without printing a word.
+  useEffect(() => {
+    Animated.timing(think, {
+      toValue: mood === 'thinking' ? 1 : 0,
+      duration: 460,
+      easing: Easing.inOut(Easing.cubic),
       useNativeDriver: true,
     }).start();
   }, [mood]);
@@ -1009,9 +1089,28 @@ export default function SpiritAnimal({
             // would also mirror the head tilt.
             { scaleX: flip ? -1 : 1 },
             { translateY: hop.interpolate({ inputRange: [0, 1], outputRange: [0, -size * 0.08] }) },
-            { translateY: breathe.interpolate({ inputRange: [0, 1], outputRange: [0, -size * 0.012] }) },
-            { scale: breathe.interpolate({ inputRange: [0, 1], outputRange: [1, 1.022] }) },
+            { translateY: breathe.interpolate({ inputRange: [0, 1], outputRange: [0, -lift] }) },
+            // Two dips per stride, one per footfall — the body falling onto
+            // each foot in turn. This is the part that reads as weight.
+            {
+              translateY: stride.interpolate({
+                inputRange: [0, 0.25, 0.5, 0.75, 1],
+                outputRange: [0, -step * 0.34, 0, -step * 0.34, 0],
+              }),
+            },
+            // Lying down: settle toward the ground and squash slightly.
+            { translateY: settle.interpolate({ inputRange: [0, 1], outputRange: [0, size * 0.1] }) },
+            { scale: breathe.interpolate({ inputRange: [0, 1], outputRange: [1, SWELL] }) },
+            { scaleY: settle.interpolate({ inputRange: [0, 1], outputRange: [1, 0.88] }) },
+            // Weight rolling between the feet.
+            {
+              rotate: stride.interpolate({
+                inputRange: [0, 0.25, 0.5, 0.75, 1],
+                outputRange: ['0deg', '1.6deg', '0deg', '-1.6deg', '0deg'],
+              }),
+            },
             { rotate: wide.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '-5deg'] }) },
+            { rotate: think.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '7deg'] }) },
           ],
         }}
       >
@@ -1026,6 +1125,17 @@ export default function SpiritAnimal({
             transform: [
               { scaleY: chew.interpolate({ inputRange: [0, 1], outputRange: [1, 0.93] }) },
               { scaleX: chew.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] }) },
+              // Lying: the head settles down and forward onto the body.
+              { translateY: settle.interpolate({ inputRange: [0, 1], outputRange: [0, head * 0.1] }) },
+              // The head bobs a beat behind the body while walking. A head
+              // locked rigidly to the torso is the difference between a walk
+              // cycle and a marching toy.
+              {
+                translateY: stride.interpolate({
+                  inputRange: [0, 0.25, 0.5, 0.75, 1],
+                  outputRange: [0, step * 0.16, 0, step * 0.16, 0],
+                }),
+              },
             ],
           }}
         >
@@ -1133,7 +1243,9 @@ export default function SpiritAnimal({
             </Mass>
           </View>
 
-          {/* limbs, and the feet that stop it reading as a balloon */}
+          {/* Arms. They swing opposite the foot on the same side — that is how
+              a real gait works, and getting it backwards is uncanny in a way
+              people notice without being able to say why. */}
           {hasLimbs &&
             [-1, 1].map((side) => (
               <Animated.View
@@ -1146,41 +1258,71 @@ export default function SpiritAnimal({
                   height: bodyH * 0.6,
                   borderRadius: bodyW,
                   backgroundColor: palette.dark,
+                  transformOrigin: 'top center',
                   transform: [
                     { rotate: `${side * 6}deg` },
+                    {
+                      rotate: stride.interpolate({
+                        inputRange: [0, 0.25, 0.5, 0.75, 1],
+                        outputRange: side < 0
+                          ? ['0deg', '13deg', '0deg', '-13deg', '0deg']
+                          : ['0deg', '-13deg', '0deg', '13deg', '0deg'],
+                      }),
+                    },
+                    // Tucked in against the body when lying down.
+                    { rotate: settle.interpolate({ inputRange: [0, 1], outputRange: ['0deg', `${side * -14}deg`] }) },
                     { scaleY: breathe.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] }) },
+                    { scaleY: settle.interpolate({ inputRange: [0, 1], outputRange: [1, 0.72] }) },
                   ],
                 }}
               />
             ))}
-          {[-1, 1].map((side) => (
-            <View
-              key={`foot${side}`}
-              style={{
-                position: 'absolute',
-                bottom: -bodyH * 0.04,
-                left: bodyBoxW / 2 + side * bodyW * 0.22 - bodyW * 0.13,
-                width: bodyW * 0.26,
-                height: bodyH * 0.14,
-                borderRadius: bodyW,
-                backgroundColor: palette.dark,
-                overflow: 'hidden',
-              }}
-            >
-              {/* two toe lines — three views that do a surprising amount */}
-              {detailed &&
-                [0.36, 0.64].map((t) => (
-                  <View
-                    key={t}
-                    style={{
-                      position: 'absolute', left: bodyW * 0.26 * t, top: 0,
-                      width: Math.max(0.8, u * 0.5), height: '100%',
-                      backgroundColor: palette.deep, opacity: 0.5,
-                    }}
-                  />
-                ))}
-            </View>
-          ))}
+
+          {/* Feet. Antiphase: one swings forward and lifts while the other is
+              planted, then they trade. */}
+          {[-1, 1].map((side) => {
+            const forward = side < 0
+              ? [0, step, 0, -step * 0.7, 0]
+              : [0, -step * 0.7, 0, step, 0];
+            const rises = side < 0
+              ? [0, -step * 0.62, 0, 0, 0]
+              : [0, 0, 0, -step * 0.62, 0];
+            return (
+              <Animated.View
+                key={`foot${side}`}
+                style={{
+                  position: 'absolute',
+                  bottom: -bodyH * 0.04,
+                  left: bodyBoxW / 2 + side * bodyW * 0.22 - bodyW * 0.13,
+                  width: bodyW * 0.26,
+                  height: bodyH * 0.14,
+                  borderRadius: bodyW,
+                  backgroundColor: palette.dark,
+                  overflow: 'hidden',
+                  transform: [
+                    { translateX: stride.interpolate({ inputRange: [0, 0.25, 0.5, 0.75, 1], outputRange: forward }) },
+                    { translateY: stride.interpolate({ inputRange: [0, 0.25, 0.5, 0.75, 1], outputRange: rises }) },
+                    // Folded forward under the body in the lying pose.
+                    { translateX: settle.interpolate({ inputRange: [0, 1], outputRange: [0, side * -bodyW * 0.06] }) },
+                    { scaleX: settle.interpolate({ inputRange: [0, 1], outputRange: [1, 1.24] }) },
+                  ],
+                }}
+              >
+                {/* two toe lines — three views that do a surprising amount */}
+                {detailed &&
+                  [0.36, 0.64].map((t) => (
+                    <View
+                      key={t}
+                      style={{
+                        position: 'absolute', left: bodyW * 0.26 * t, top: 0,
+                        width: Math.max(0.8, u * 0.5), height: '100%',
+                        backgroundColor: palette.deep, opacity: 0.5,
+                      }}
+                    />
+                  ))}
+              </Animated.View>
+            );
+          })}
         </View>
       </Animated.View>
     </View>

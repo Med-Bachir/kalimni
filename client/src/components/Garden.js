@@ -731,6 +731,99 @@ function Critter({ index, width, night, color }) {
   );
 }
 
+// --- the resident -----------------------------------------------------------
+
+const PET_SIZE = 68;
+
+/**
+ * The spirit animal, living in the garden rather than parked in the corner of
+ * it.
+ *
+ * It used to be pinned to `right: 12`, which made it read as a sticker on the
+ * picture. Now it strolls along the near edge of the bed, turns to face the way
+ * it is going, and stops for a while wherever it arrives — the legs only cycle
+ * while it is actually travelling.
+ *
+ * The wander is bounded to the bed's width so it can never walk off the canvas,
+ * and it starts from wherever the last stroll ended rather than from a fixed
+ * point, so reopening the screen does not teleport it home.
+ */
+function GardenSpirit({ id, width, points, energy, pulse, onPress }) {
+  const vigour = Math.max(1, Math.min(5, Number(energy) || 3));
+  const pace = 1 + (3 - vigour) * 0.14;
+
+  const span = Math.max(1, width - PET_SIZE - 24);
+  const x = useRef(new Animated.Value(span * 0.72)).current;
+  const at = useRef(span * 0.72);
+  const timer = useRef(null);
+  const [walking, setWalking] = useState(false);
+  const [flip, setFlip] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const stroll = () => {
+      if (cancelled) return;
+      // Low-mood days: shorter trips, closer to where it already is. Same
+      // "match, never mourn" rule the rest of the companion follows.
+      const reach = span * (vigour <= 2 ? 0.4 : 0.85);
+      const target = Math.max(0, Math.min(span, at.current + (Math.random() * 2 - 1) * reach));
+      const distance = Math.abs(target - at.current);
+
+      // Too short to be worth walking — wait and pick again, rather than
+      // shuffling a few pixels.
+      if (distance < 12) {
+        timer.current = setTimeout(stroll, 2400 * pace);
+        return;
+      }
+
+      setFlip(target < at.current);
+      at.current = target;
+      setWalking(true);
+      Animated.timing(x, {
+        toValue: target,
+        duration: (1400 + distance * 26) * pace,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (cancelled || !finished) return;
+        setWalking(false);
+        timer.current = setTimeout(stroll, (2200 + Math.random() * 4200) * pace);
+      });
+    };
+
+    timer.current = setTimeout(stroll, 900);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer.current);
+    };
+  }, [span, pace, vigour]);
+
+  return (
+    <Animated.View
+      style={{
+        position: 'absolute',
+        left: 12,
+        bottom: GROUND * 0.16,
+        transform: [{ translateX: x }],
+      }}
+    >
+      <Pressable onPress={onPress} disabled={!onPress} hitSlop={8}>
+        <SpiritAnimal
+          id={id}
+          size={PET_SIZE}
+          points={points}
+          energy={vigour}
+          pulseKey={pulse}
+          pose={walking ? 'walk' : 'stand'}
+          flip={flip}
+          aura={false}
+        />
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 // --- the garden -------------------------------------------------------------
 
 /**
@@ -887,18 +980,18 @@ export default function Garden({
           ))}
         </View>
 
-        {/* The spirit animal, on the near edge of the bed. Tappable when the
-            caller gives it somewhere to go — the garden is where most people
-            will notice it is a thing you can visit. */}
+        {/* The spirit animal, living on the near edge of the bed. Tappable
+            when the caller gives it somewhere to go — the garden is where most
+            people will notice it is a thing you can visit. */}
         {spiritId ? (
-          <Pressable
+          <GardenSpirit
+            id={spiritId}
+            width={width}
+            points={points}
+            energy={spiritEnergy}
+            pulse={spiritPulse}
             onPress={onSpiritPress}
-            disabled={!onSpiritPress}
-            hitSlop={8}
-            style={{ position: 'absolute', right: 12, bottom: GROUND * 0.16 }}
-          >
-            <SpiritAnimal id={spiritId} size={68} points={points} energy={spiritEnergy} pulseKey={spiritPulse} aura={false} />
-          </Pressable>
+          />
         ) : null}
 
         {/* something alive moving through it */}

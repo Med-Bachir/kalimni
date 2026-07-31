@@ -85,6 +85,9 @@ export default function FloatingSpirit() {
   const [taps, setTaps] = useState(0);
   const [flip, setFlip] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  // Drives the animal's leg cycle. True only while it is actually travelling —
+  // legs that keep pumping while it stands still are worse than no legs.
+  const [walking, setWalking] = useState(false);
 
   const x = useRef(new Animated.Value(width * 0.62)).current;
   const bob = useRef(new Animated.Value(0)).current;
@@ -170,33 +173,46 @@ export default function FloatingSpirit() {
       if (distance > 4) setFlip(target < posRef.current);
       posRef.current = target;
 
+      // Legs start before the movement does and stop after it ends, by a beat
+      // each way. An animal that begins gliding on frame one and freezes the
+      // instant it arrives looks like a sprite on a tween; a short wind-up and
+      // wind-down is most of what separates the two.
+      setWalking(true);
       Animated.timing(x, {
         toValue: target,
-        // Pace scales with distance, so it never sprints across the screen.
-        duration: (2600 + distance * 14) * pace,
+        // Slower than a linear tween so the legs and the travel agree, and
+        // `easing` stays gentle: nothing about this should catch the eye.
+        duration: (2600 + distance * 22) * pace,
         easing: Easing.inOut(Easing.quad),
         useNativeDriver: true,
       }).start(() => {
         if (cancelled) return;
-        walkTimer.current = setTimeout(step, (4000 + Math.random() * 7000) * pace);
+        setWalking(false);
+        // Shorter pauses than before. The old 4-11s gap meant the animal spent
+        // most of its life standing perfectly still, which is the other half of
+        // why it was reported as frozen — the walk was real, you just rarely
+        // caught it happening.
+        walkTimer.current = setTimeout(step, (1800 + Math.random() * 3600) * pace);
       });
     };
 
-    walkTimer.current = setTimeout(step, 2500);
+    walkTimer.current = setTimeout(step, 1200);
     return () => {
       cancelled = true;
       clearTimeout(walkTimer.current);
     };
   }, [hidden, width, pace, vigour]);
 
-  // A small vertical bob while it walks — the difference between an animal
-  // moving and a sticker sliding.
+  // A slow hover on top of everything else. The per-footfall bounce now lives
+  // inside SpiritAnimal's walk cycle, where it can be in phase with the legs;
+  // this is just the long, lazy drift that keeps the animal from ever being
+  // perfectly still.
   useEffect(() => {
     if (hidden) return undefined;
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(bob, { toValue: 1, duration: 620, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(bob, { toValue: 0, duration: 680, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(bob, { toValue: 1, duration: 1900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(bob, { toValue: 0, duration: 2200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
       ])
     );
     loop.start();
@@ -283,6 +299,9 @@ export default function FloatingSpirit() {
             energy={vigour}
             flip={flip}
             pulseKey={taps}
+            // Stops walking to answer when you tap it, which is what an animal
+            // does — the legs would otherwise keep going through the reply.
+            pose={walking && !speaking ? 'walk' : 'stand'}
             expression={speaking ? 'happy' : 'idle'}
             aura={false}
           />
