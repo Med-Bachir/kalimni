@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ScrollView, Pressable } from 'react-native';
+import { View, ScrollView, Pressable, Image, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
@@ -16,6 +16,7 @@ import { useCalm } from '../../store/calm';
 import { useSpirit } from '../../store/spirit';
 import { localizeDigits } from '../../utils/format';
 import { gardenFor, SKIES, skiesUnlocked } from '../../utils/calmData';
+import { skyImageFor } from '../../utils/skyArt';
 import { tap as hapticTap } from '../../utils/haptics';
 
 // The Calm Corner: the part of Kalimni that is allowed to be enjoyable.
@@ -171,11 +172,23 @@ export default function CalmScreen({ navigation }) {
                       start={{ x: 0.5, y: 0 }}
                       end={{ x: 0.5, y: 1 }}
                       style={{
-                        width: 78, height: 56, borderRadius: 14,
+                        width: 78, height: 56, borderRadius: 14, overflow: 'hidden',
                         borderWidth: active ? 2.5 : 0, borderColor: colors.primary,
                         alignItems: 'center', justifyContent: 'center',
                       }}
                     >
+                      {/* Show the actual backdrop on the swatch once it is
+                          unlocked, so the picker is a shelf of the things you
+                          own rather than eight similar gradients. Locked ones
+                          stay grey — seeing exactly what you have not got yet
+                          turns a collection into a wishlist. */}
+                      {isUnlocked && skyImageFor(s.id) && (
+                        <Image
+                          source={skyImageFor(s.id)}
+                          resizeMode="cover"
+                          style={StyleSheet.absoluteFill}
+                        />
+                      )}
                       {!isUnlocked && <Ionicons name="lock-closed" size={17} color={colors.faint} />}
                     </LinearGradient>
                     <T size={11} w={active ? '600' : '400'} color={isUnlocked ? colors.muted : colors.faint}>

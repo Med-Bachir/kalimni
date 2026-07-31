@@ -1,16 +1,21 @@
-# Spirit habitat art
+# Generated art
 
-The six backdrops in `assets/spirits/`. One per spirit animal, showing the place
-that animal would go just to breathe — which is the last question the quiz asks
-(`spirit.quiz.place` in i18n), so the reveal answers the question the patient
-just answered.
+Two sets of bitmaps, and they are the only ones in the app:
 
-These are the only bitmaps in the app. Everything else — the animals, the
-garden, the UI sounds — is generated from code at runtime. The rule for reaching
-for a bitmap is narrow: **only when code genuinely cannot do it.** Soft
-atmospheric haze, a hundred layered trees receding into mist, light bleeding
-along a horizon. Shape, depth and colour are not on that list; `Garden.js` does
-those in Views and stays animatable.
+- `assets/spirits/` — twelve habitat backdrops, one per spirit animal, showing
+  the place that animal would go just to breathe. That is the last question the
+  quiz asks (`spirit.quiz.place` in i18n), so the reveal answers the question
+  the patient just answered.
+- `assets/skies/` — **five of the eight** collectible skies for the garden.
+  The other three are drawn in code; see "Skies" below for why that is a
+  decision rather than an omission.
+
+Everything else — the animals, the garden, the plants, the UI sounds — is
+generated from code at runtime. The rule for reaching for a bitmap is narrow:
+**only when code genuinely cannot do it.** Soft atmospheric haze, a hundred
+layered trees receding into mist, gouache cloud texture. Shape, depth, colour
+and light are not on that list; `Garden.js` does those in Views and stays
+animatable.
 
 The animal drawn on top of these is still `components/SpiritAnimal.js`, still
 breathing and blinking. That split is deliberate and should survive any redesign:
@@ -90,6 +95,56 @@ foreach ($id in @('owl','deer','fox','turtle','cat','bear')) {
   $g.Dispose(); $bmp.Dispose(); $img.Dispose()
 }
 ```
+
+## Skies
+
+`assets/skies/` holds five of the eight collectible garden backdrops. The split
+between painted and drawn is along a real line, not a budget line — though the
+budget is how it was found. The free-trial generation allowance ran out after
+five, and the three left over turned out to be the three that should have been
+code all along:
+
+| sky | source | why |
+| --- | --- | --- |
+| `dawn`, `morning`, `noon`, `rainy`, `dusk` | painted | Their character is **cloud structure** — soft irregular edges, wisps thinning to nothing, layered translucency. Views and gradients are genuinely bad at this; every attempt looks like lozenges. |
+| `night`, `aurora`, `firstSun` | code | Their character is **light** — a starfield, drifting curtains of glow, a low sun bleeding along the horizon. Gradients and opacity are exactly right for that, and code wins something a painting cannot have: they move. |
+
+So if the remaining generations are ever bought, think twice. A still aurora is
+a green smear. `Garden.js` draws it as three rotated gradient bands that fade to
+transparent at both ends and drift independently, over forty stars twinkling off
+one shared driver.
+
+Note that `aurora` was **darkened** in `calmData.js` when the curtains were
+added (pale mint to a deep teal-navy). Bands of light over a daytime sky read as
+coloured smudges; the whole effect depends on glow against darkness. It is also
+in `NIGHT_SKIES` now, so the hills are lit to match.
+
+Generated the same way as the habitats but at **21:9** — the sky strip is wide
+and short (full width by ~154pt) — with a suffix that swaps the habitat's
+"empty open ground across the lower third" for the opposite instruction:
+
+```
+Soft flat gouache illustration, muted desaturated palette, simple layered
+shapes, minimal detail, gentle haze and atmospheric depth, calm and still.
+Sky only, no ground, no horizon line, no trees, no buildings, no birds. The
+lower edge fades to a soft plain even wash. No animals, no people, no text,
+no letters. Children's picture book style, soft edges, no outlines, low
+contrast, flat colour.
+```
+
+`The lower edge fades to a soft plain even wash` is the load-bearing line here:
+that band is where the code-drawn plants stand, and any detail in it fights
+them. `no horizon line` matters for the same reason — `Garden.js` draws its own
+hills, and a painted horizon behind them gives the scene two.
+
+Downscaled to **1000px wide, JPEG q82** — wider than the habitats because a sky
+renders full-bleed rather than in a card. Smooth gradient art compresses far
+better than the habitat scenes: all five together come to about **115 KB**.
+
+Skies render in `Garden.js` under the palette gradient at 94% opacity, so a
+trace of the app's own colour shows through and binds the bitmap to the theme.
+When a painting is present the code clouds and the code sun are both suppressed
+— the painting already has its own.
 
 ## Adding a seventh animal
 

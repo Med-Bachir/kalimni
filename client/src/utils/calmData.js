@@ -125,7 +125,12 @@ export const SKIES = [
   { id: 'rainy',    at: 15, colors: ['#C4D2DA', '#7C93A3'] },
   { id: 'dusk',     at: 24, colors: ['#EDEAF6', '#B9B1DC'] },
   { id: 'night',    at: 35, colors: ['#3A4E60', '#1C3040'] },
-  { id: 'aurora',   at: 50, colors: ['#CDEBE3', '#9BC7DC'] },
+  // Aurora is a NIGHT sky, and used to be a pale mint gradient. Bands of light
+  // over a daytime blue read as coloured smudges, not an aurora — the whole
+  // effect depends on glow against darkness. Darkened when the drifting
+  // curtains were added in Garden.js; the pale mint moved into the light
+  // itself, where it belongs.
+  { id: 'aurora',   at: 50, colors: ['#16323E', '#0D1F2A'] },
   { id: 'firstSun', at: 70, colors: ['#F7E1C9', '#E8A87C'] },
 ];
 

@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Pressable, Animated, Easing } from 'react-native';
+import { View, Image, Pressable, StyleSheet, Animated, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import SpiritAnimal from './SpiritAnimal';
 import { gardenFor, skyById, PLANT_GREENS, BLOOMS, GARDEN_CAPACITY } from '../utils/calmData';
+import { skyImageFor } from '../utils/skyArt';
 
 // The garden. Every plant is one thing the patient did — a check-in, a
 // breathing round, a grounding session, a quest — and the plot only ever fills
@@ -57,11 +58,16 @@ const LIGHT = {
   rainy: null, // overcast: no disc at all, and the scene stays flat and cool
   dusk: { x: 0.79, y: 0.44, r: 26, core: '#FBD9BE', glow: '#E8A87C', warm: 'rgba(232,168,124,.20)' },
   night: { x: 0.76, y: 0.2, r: 15, core: '#EDF4F8', glow: '#9FC0D2', warm: 'rgba(90,130,160,.16)', moon: true },
-  aurora: { x: 0.3, y: 0.22, r: 15, core: '#F0FBF6', glow: '#B5E0D2', warm: 'rgba(181,224,210,.14)' },
+  // A moon, not a sun — aurora is a night sky. Small and low-contrast so the
+  // drifting curtains stay the thing you look at.
+  aurora: { x: 0.82, y: 0.16, r: 11, core: '#EAF6F1', glow: '#A9D6C6', warm: 'rgba(140,200,182,.13)', moon: true },
   firstSun: { x: 0.22, y: 0.4, r: 32, core: '#FFEFD4', glow: '#E8A87C', warm: 'rgba(232,168,124,.22)' },
 };
 
-const NIGHT_SKIES = ['night', 'dusk'];
+// Skies the hills and ground have to be lit for as night. Aurora belongs here
+// now that it is genuinely dark — daytime-green hills under an aurora were the
+// giveaway that the sky and the land had been designed separately.
+const NIGHT_SKIES = ['night', 'dusk', 'aurora'];
 
 // Deterministic pseudo-random from an integer. Every scatter below (pebbles,
 // grass, leans) uses it, so the garden is identical on every render and after
@@ -117,29 +123,148 @@ function Sun({ light, width }) {
   );
 }
 
-function Stars({ width, show }) {
+/**
+ * A starfield that breathes.
+ *
+ * Stars are drawn in three depths — a handful of bright near ones, a scatter of
+ * mid ones, and a dusting of faint far ones — because a field of identical dots
+ * reads as noise, and depth is most of what makes a night sky feel like a
+ * volume rather than a texture.
+ *
+ * The twinkle is one shared driver rather than one animation per star. Each
+ * star reads it through its own interpolation with its own phase, so forty
+ * stars cost one animated value. Two stars ever pulsing in unison would be
+ * instantly wrong, so the phases are spread by the same deterministic `rand`
+ * that places them.
+ */
+function Stars({ width, show, twinkle }) {
   if (!show) return null;
+
+  const LAYERS = [
+    { count: 8, min: 1.7, span: 1.5, base: 0.72, reach: 0.5 },
+    { count: 16, min: 1.1, span: 1.1, base: 0.46, reach: 0.44 },
+    { count: 18, min: 0.7, span: 0.7, base: 0.24, reach: 0.3 },
+  ];
+
   return (
-    <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: 0, height: HEIGHT * 0.6 }}>
-      {Array.from({ length: 16 }, (_, i) => {
-        const size = 1.2 + rand(i, 3) * 1.6;
-        return (
-          <View
-            key={i}
-            style={{
-              position: 'absolute',
-              left: width * (0.04 + rand(i, 1) * 0.92),
-              top: HEIGHT * (0.04 + rand(i, 2) * 0.42),
-              width: size,
-              height: size,
-              borderRadius: size,
-              backgroundColor: '#FFFFFF',
-              opacity: 0.4 + rand(i, 4) * 0.5,
-            }}
-          />
-        );
-      })}
+    <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: 0, height: HEIGHT * 0.66 }}>
+      {LAYERS.map((layer, li) =>
+        Array.from({ length: layer.count }, (_, i) => {
+          const seed = li * 100 + i;
+          const size = layer.min + rand(seed, 3) * layer.span;
+          // Phase: where in the shared cycle this star sits. Fractional offsets
+          // let each one peak at a different moment off one clock.
+          const phase = rand(seed, 5);
+          const low = layer.base;
+          const high = Math.min(1, layer.base + layer.reach);
+          return (
+            <Animated.View
+              key={`${li}-${i}`}
+              style={{
+                position: 'absolute',
+                left: width * (0.03 + rand(seed, 1) * 0.94),
+                top: HEIGHT * (0.03 + rand(seed, 2) * 0.46),
+                width: size,
+                height: size,
+                borderRadius: size,
+                backgroundColor: '#FFFFFF',
+                opacity: twinkle.interpolate({
+                  inputRange: [0, 0.5, 1],
+                  outputRange: phase > 0.5 ? [low, high, low] : [high, low, high],
+                }),
+              }}
+            />
+          );
+        })
+      )}
     </View>
+  );
+}
+
+/**
+ * The aurora: three bands of light leaning across the sky, drifting slowly and
+ * independently.
+ *
+ * Each band is a rotated gradient that fades to transparent at BOTH ends, which
+ * is the whole trick — a hard edge anywhere and it stops being light and starts
+ * being a ribbon of plastic. They are deliberately wider than the canvas and
+ * clipped by it, so no end is ever visible.
+ *
+ * This is the case for drawing rather than painting a sky: a still aurora is a
+ * green smear, and a moving one is the only thing in the app that looks like
+ * weather.
+ */
+function Aurora({ width, drift }) {
+  const BANDS = [
+    { top: 0.05, height: 46, lean: -11, colors: ['rgba(150,222,198,0)', 'rgba(168,232,206,.46)', 'rgba(150,222,198,0)'], travel: 16 },
+    { top: 0.16, height: 34, lean: -6, colors: ['rgba(178,214,236,0)', 'rgba(196,228,244,.34)', 'rgba(178,214,236,0)'], travel: -12 },
+    { top: 0.27, height: 26, lean: -15, colors: ['rgba(206,196,236,0)', 'rgba(214,206,242,.26)', 'rgba(206,196,236,0)'], travel: 9 },
+  ];
+
+  return (
+    <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: 0, height: HEIGHT * 0.62, overflow: 'hidden' }}>
+      {BANDS.map((band, i) => (
+        <Animated.View
+          key={i}
+          style={{
+            position: 'absolute',
+            top: HEIGHT * band.top,
+            left: -width * 0.3,
+            width: width * 1.6,
+            height: band.height,
+            transform: [
+              { rotate: `${band.lean}deg` },
+              {
+                translateX: drift.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-band.travel, band.travel],
+                }),
+              },
+            ],
+          }}
+        >
+          <LinearGradient
+            colors={band.colors}
+            locations={[0, 0.5, 1]}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={{ flex: 1, borderRadius: band.height }}
+          />
+        </Animated.View>
+      ))}
+    </View>
+  );
+}
+
+/**
+ * The band of light along the horizon at sunrise.
+ *
+ * A sun disc alone does not read as dawn — what says "the sun just came up" is
+ * the whole lower sky going warm and the light bleeding upward from behind the
+ * hills. This sits under the hills and slowly brightens, which is the one
+ * moving thing a painted sunrise could never do.
+ */
+function HorizonGlow({ colors: bandColors, pulse }) {
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        top: HEIGHT * 0.3,
+        height: HEIGHT - GROUND - HEIGHT * 0.3 + 18,
+        opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0.92] }),
+      }}
+    >
+      <LinearGradient
+        colors={bandColors}
+        locations={[0, 0.55, 1]}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        style={{ flex: 1 }}
+      />
+    </Animated.View>
   );
 }
 
@@ -858,8 +983,39 @@ export default function Garden({
   const wind = [useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current];
   const drift = [useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current];
 
+  // Drivers for the three code-drawn skies. One value each, shared by every
+  // element in that sky — see the notes on Stars and Aurora for why forty
+  // stars still only cost one animation.
+  const twinkle = useRef(new Animated.Value(0)).current;
+  const curtain = useRef(new Animated.Value(0)).current;
+  const sunrise = useRef(new Animated.Value(0)).current;
+
+  // The painting for this sky, or null when the sky is one we draw ourselves.
+  const art = skyImageFor(skyId);
+  const drawn = !art;
+
   useEffect(() => {
     const loops = [
+      // Slow on purpose. A sky that shimmers is a screensaver; these should be
+      // things you only notice if you sit and look at them.
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(twinkle, { toValue: 1, duration: 2600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+          Animated.timing(twinkle, { toValue: 0, duration: 3100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        ])
+      ),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(curtain, { toValue: 1, duration: 11000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+          Animated.timing(curtain, { toValue: 0, duration: 13000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        ])
+      ),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(sunrise, { toValue: 1, duration: 5200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+          Animated.timing(sunrise, { toValue: 0, duration: 6400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        ])
+      ),
       ...wind.map((value, i) =>
         Animated.loop(
           Animated.sequence([
@@ -913,13 +1069,51 @@ export default function Garden({
         if (measured > 0 && measured !== width) setWidth(measured);
       }}
     >
-      <LinearGradient colors={sky.colors} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={{ flex: 1 }}>
-        <Stars width={width} show={skyId === 'night'} />
-        <Sun light={light} width={width} />
+      <View style={{ flex: 1 }}>
+        {/* The gradient stays underneath even when a painting covers it. The
+            painting sits at 94%, so a trace of the app's own palette shows
+            through and binds the bitmap to the theme instead of letting it
+            float on top as a foreign object. */}
+        <LinearGradient
+          colors={sky.colors}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        {art && (
+          <Image
+            source={art}
+            resizeMode="cover"
+            style={[StyleSheet.absoluteFill, { opacity: 0.94 }]}
+          />
+        )}
 
-        <Cloud x={0.06} y={0.1} scale={1} opacity={night ? 0.2 : 0.5} drift={cloudDrifts[0]} width={width} />
-        <Cloud x={0.58} y={0.05} scale={0.7} opacity={night ? 0.14 : 0.38} drift={cloudDrifts[1]} width={width} />
-        <Cloud x={0.34} y={0.22} scale={0.5} opacity={night ? 0.1 : 0.28} drift={cloudDrifts[2]} width={width} />
+        {/* Night and aurora are drawn, not painted — see utils/skyArt.js for
+            why those two and firstSun were the right ones to keep in code. */}
+        <Stars width={width} show={drawn && (skyId === 'night' || skyId === 'aurora')} twinkle={twinkle} />
+        {skyId === 'aurora' && <Aurora width={width} drift={curtain} />}
+        {skyId === 'firstSun' && (
+          <HorizonGlow
+            colors={['rgba(247,225,201,0)', 'rgba(244,201,158,.55)', 'rgba(232,168,124,.85)']}
+            pulse={sunrise}
+          />
+        )}
+
+        {/* Same reasoning as the clouds: the paintings already carry their own
+            light, so a second disc floating over one reads as two suns. The
+            warm wash further down still runs for every sky — that is what keeps
+            the plants lit to match whichever backdrop is showing. */}
+        {drawn && <Sun light={light} width={width} />}
+
+        {/* Painted skies bring their own clouds. Drawing more on top of them
+            gives every cloud a twin a few pixels away. */}
+        {drawn && (
+          <>
+            <Cloud x={0.06} y={0.1} scale={1} opacity={night ? 0.2 : 0.5} drift={cloudDrifts[0]} width={width} />
+            <Cloud x={0.58} y={0.05} scale={0.7} opacity={night ? 0.14 : 0.38} drift={cloudDrifts[1]} width={width} />
+            <Cloud x={0.34} y={0.22} scale={0.5} opacity={night ? 0.1 : 0.28} drift={cloudDrifts[2]} width={width} />
+          </>
+        )}
 
         <Hills width={width} tint={night ? '#22333F' : '#7E9A86'} />
         <Soil width={width} />
@@ -1036,7 +1230,7 @@ export default function Garden({
             </View>
           </View>
         )}
-      </LinearGradient>
+      </View>
     </View>
   );
 }
