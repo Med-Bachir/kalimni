@@ -10,6 +10,9 @@ import { useSettings } from '../../store/settings';
 import { useSpirit } from '../../store/spirit';
 import { ensureLayoutDirection } from '../../utils/rtl';
 import { api } from '../../api/client';
+import { localizeDigits } from '../../utils/format';
+import { BADGE_COUNT } from '../../utils/badges';
+import { useEngagement } from '../../hooks/useEngagement';
 
 export default function ProfileScreen({ navigation }) {
   const { t, lang, L } = useI18n();
@@ -42,6 +45,8 @@ export default function ProfileScreen({ navigation }) {
   const companion = useSettings((s) => s.companion);
   const setCompanion = useSettings((s) => s.setCompanion);
   const spiritId = useSpirit((s) => s.id);
+  // Read-only: HomeScreen is the one that awards and celebrates.
+  const { earned } = useEngagement();
 
   const switchLanguage = () => {
     const next = lang === 'ar' ? 'fr' : 'ar';
@@ -130,6 +135,18 @@ export default function ProfileScreen({ navigation }) {
                 trackColor={{ false: colors.track, true: colors.primary }}
                 thumbColor="#fff"
               />
+            }
+          />
+          <MenuRow
+            icon="medal-outline" label={t('badges.title')}
+            onPress={() => navigation.navigate('Badges')}
+            right={
+              <T w="600" size={13.5} color={colors.muted}>
+                {t('badges.count', {
+                  done: localizeDigits(earned.length, lang),
+                  total: localizeDigits(BADGE_COUNT, lang),
+                })}
+              </T>
             }
           />
           <MenuRow

@@ -55,7 +55,7 @@ function Dot({ filled, delay }) {
 
 export default function GroundingScreen({ navigation }) {
   const { t } = useI18n();
-  const addGrowth = useCalm((s) => s.addGrowth);
+  const completeActivity = useCalm((s) => s.completeActivity);
 
   const [stepIndex, setStepIndex] = useState(-1); // -1 = intro, LENGTH = done
   const [counted, setCounted] = useState(0);
@@ -67,7 +67,7 @@ export default function GroundingScreen({ navigation }) {
   useEffect(() => {
     if (!done || rewarded.current) return;
     rewarded.current = true; // never double-credit a re-render
-    addGrowth(1);
+    completeActivity('grounding');
     hapticCelebrate();
     soundComplete();
   }, [done]);

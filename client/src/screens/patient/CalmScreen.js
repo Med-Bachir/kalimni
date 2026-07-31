@@ -7,6 +7,8 @@ import { Screen, T, Card, BackButton, SectionHeader } from '../../components/ui'
 import { FadeIn } from '../../components/motion';
 import Garden from '../../components/Garden';
 import QuestsCard from '../../components/QuestsCard';
+import BadgeShelf from '../../components/BadgeShelf';
+import { useEngagement } from '../../hooks/useEngagement';
 import { colors } from '../../theme/colors';
 import { useI18n } from '../../i18n';
 import { api } from '../../api/client';
@@ -42,6 +44,9 @@ export default function CalmScreen({ navigation }) {
   const sky = useCalm((s) => s.sky);
   const setSky = useCalm((s) => s.setSky);
   const spiritId = useSpirit((s) => s.id);
+  // No `award` here — HomeScreen owns celebration so a badge earned by
+  // finishing an exercise is announced once, not once per mounted screen.
+  const { earned } = useEngagement();
 
   const { data: checkinData } = useQuery({
     queryKey: ['checkins'],
@@ -132,8 +137,14 @@ export default function CalmScreen({ navigation }) {
           <QuestsCard />
         </FadeIn>
 
+        {/* Badges. Earned ones only here — the full grid, locked included,
+            lives one tap away. */}
+        <FadeIn index={4}>
+          <BadgeShelf earned={earned} onPress={() => navigation.navigate('Badges')} />
+        </FadeIn>
+
         {/* Collectible skies */}
-        <FadeIn index={4} style={{ gap: 12 }}>
+        <FadeIn index={5} style={{ gap: 12 }}>
           <SectionHeader title={t('calm.skies')} />
           <T size={12.5} color={colors.muted} style={{ lineHeight: 20 }}>
             {t('calm.skiesBody', { n: n(unlocked.length), total: n(SKIES.length) })}
@@ -179,7 +190,7 @@ export default function CalmScreen({ navigation }) {
 
         {/* The promise, written down. Patients read this kind of line and it
             changes how the rest of the screen feels. */}
-        <FadeIn index={5}>
+        <FadeIn index={6}>
           <Card style={{ padding: 16, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
             <Ionicons name="shield-checkmark-outline" size={19} color={colors.success} />
             <T size={12.5} color={colors.muted} style={{ flex: 1, lineHeight: 21 }}>

@@ -24,7 +24,7 @@ export default function BreathingScreen({ navigation }) {
   const [phaseIndex, setPhaseIndex] = useState(0);
   const [countdown, setCountdown] = useState(PHASES[0].seconds);
   const scale = useRef(new Animated.Value(1)).current;
-  const addGrowth = useCalm((s) => s.addGrowth);
+  const completeActivity = useCalm((s) => s.completeActivity);
   const rewarded = useRef(false);
 
   const phase = PHASES[phaseIndex];
@@ -35,7 +35,7 @@ export default function BreathingScreen({ navigation }) {
   useEffect(() => {
     if (state !== 'done' || rewarded.current) return;
     rewarded.current = true;
-    addGrowth(1);
+    completeActivity('breathing');
     hapticCelebrate();
     soundComplete();
   }, [state]);

@@ -7,6 +7,7 @@ import { Screen, T, Card, Button } from './ui';
 import { colors } from '../theme/colors';
 import { useI18n } from '../i18n';
 import { api } from '../api/client';
+import { useCalm } from '../store/calm';
 import { localizeDigits } from '../utils/format';
 import { isMilestone, journeyFor } from '../utils/milestones';
 import { PopIn, Pulse } from './motion';
@@ -52,12 +53,17 @@ export default function DailyCheckin() {
   const [values, setValues] = useState({ mood: 3, stress: 3, energy: 3, sleep: 3 });
   const [note, setNote] = useState('');
   const [result, setResult] = useState(null); // { message, suggestion, milestone? }
+  const recordCheckin = useCalm((s) => s.recordCheckin);
 
   const { data } = useQuery({ queryKey: ['checkins'], queryFn: () => api('/ai/checkins') });
 
   const save = useMutation({
     mutationFn: () => api('/ai/checkin', { method: 'POST', body: { ...values, note: note.trim() || undefined } }),
     onSuccess: ({ feedback, total }) => {
+      // Device-side record for the badges: today counted as showing up, a
+      // written note counted toward the journalling badges, and a mood of 1-2
+      // counted as a hard day — which earns MORE here, not less.
+      recordCheckin({ mood: values.mood, hasNote: !!note.trim() });
       // The server sends the post-insert total, so a milestone is celebrated
       // in this same screen rather than a refetch later.
       const milestone = isMilestone(total) ? journeyFor(total).reached : null;

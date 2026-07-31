@@ -121,7 +121,7 @@ function Bubble({ index, width, height, onGone, onPop }) {
 export default function BubblesScreen({ navigation }) {
   const { t, lang } = useI18n();
   const { width, height } = useWindowDimensions();
-  const addGrowth = useCalm((s) => s.addGrowth);
+  const completeActivity = useCalm((s) => s.completeActivity);
 
   const [running, setRunning] = useState(false);
   const [popped, setPopped] = useState(0);
@@ -135,7 +135,7 @@ export default function BubblesScreen({ navigation }) {
   useEffect(() => {
     if (!finished || rewarded.current) return;
     rewarded.current = true;
-    addGrowth(1);
+    completeActivity('bubbles');
     hapticCelebrate();
     soundComplete();
   }, [finished]);

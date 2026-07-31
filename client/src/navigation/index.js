@@ -31,6 +31,7 @@ import BubblesScreen from '../screens/patient/BubblesScreen';
 import ReframeScreen from '../screens/patient/ReframeScreen';
 import SpiritQuizScreen from '../screens/patient/SpiritQuizScreen';
 import SpiritHomeScreen from '../screens/patient/SpiritHomeScreen';
+import BadgesScreen from '../screens/patient/BadgesScreen';
 import PatientChatTab from '../screens/patient/PatientChatTab';
 import AICompanionScreen from '../screens/patient/AICompanionScreen';
 import ProfileScreen from '../screens/patient/ProfileScreen';
@@ -211,6 +212,9 @@ export default function RootNavigator() {
       {/* Where the animal lives. Reachable by long-pressing it anywhere, from
           the garden, and from the profile. */}
       <Stack.Screen name="SpiritHome" component={SpiritHomeScreen} />
+      {/* The full badge collection. Reached from the home level card, the
+          calm corner shelf and the profile. */}
+      <Stack.Screen name="Badges" component={BadgesScreen} />
       <Stack.Screen name="Call" component={CallScreen} options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
       <Stack.Screen name="IncomingCall" component={IncomingCallScreen} options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
       <Stack.Screen name="PersonalData" component={PersonalDataScreen} />

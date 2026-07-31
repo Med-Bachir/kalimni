@@ -133,7 +133,7 @@ function FlipCard({ card, onFlipped }) {
 
 export default function ReframeScreen({ navigation }) {
   const { t, lang } = useI18n();
-  const addGrowth = useCalm((s) => s.addGrowth);
+  const completeActivity = useCalm((s) => s.completeActivity);
 
   const [index, setIndex] = useState(0);
   const [seen, setSeen] = useState(0);
@@ -146,7 +146,7 @@ export default function ReframeScreen({ navigation }) {
   useEffect(() => {
     if (!done || rewarded.current) return;
     rewarded.current = true;
-    addGrowth(1);
+    completeActivity('reframe');
     hapticCelebrate();
     soundComplete();
   }, [done]);

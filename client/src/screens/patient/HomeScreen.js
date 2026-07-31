@@ -9,7 +9,10 @@ import DailyCheckin from '../../components/DailyCheckin';
 import { MoodRibbon } from '../../components/MoodTrend';
 import TodayCard from '../../components/TodayCard';
 import Garden from '../../components/Garden';
+import DailyLine from '../../components/DailyLine';
+import LevelCard from '../../components/LevelCard';
 import { FadeIn } from '../../components/motion';
+import { useEngagement } from '../../hooks/useEngagement';
 import { checkinDue } from './HistoryScreen';
 import { colors } from '../../theme/colors';
 import { useI18n } from '../../i18n';
@@ -24,6 +27,11 @@ export default function HomeScreen({ navigation }) {
   const user = useAuth((s) => s.user);
   const growth = useCalm((s) => s.growth);
   const sky = useCalm((s) => s.sky);
+
+  // Home is the single owner of badge awarding — see the note in the hook. Any
+  // other screen mounting useEngagement() must leave `award` off, or a badge
+  // earned in the garden gets celebrated again the moment Home re-renders.
+  const { level, presence } = useEngagement({ award: true });
 
   const { data: specialistData } = useQuery({
     queryKey: ['mySpecialist'],
@@ -70,6 +78,12 @@ export default function HomeScreen({ navigation }) {
   return (
     <Screen>
       <ScrollView contentContainerStyle={{ padding: 22, gap: 20 }} showsVerticalScrollIndicator={false}>
+        {/* Today's line. Above the greeting because it is the one thing here
+            that asks nothing — the app should say something kind before it
+            shows anyone a card with a button on it. Hides itself once tapped,
+            and stays hidden until tomorrow. */}
+        <DailyLine />
+
         {/* Header */}
         <FadeIn index={0}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -165,10 +179,21 @@ export default function HomeScreen({ navigation }) {
           />
         </FadeIn>
 
+        {/* Level, progress, and the week behind it. Directly under the mood
+            ribbon so the two halves of "how am I doing" sit together: the
+            ribbon is how the patient felt, this is what they did. */}
+        <FadeIn index={6}>
+          <LevelCard
+            level={level}
+            presence={presence}
+            onPress={() => navigation.navigate('Badges')}
+          />
+        </FadeIn>
+
         {/* Calm Corner. The garden preview is the entry point on purpose — a
             row of text saying "exercises" gets tapped far less than a picture
             of something that is visibly yours and visibly growing. */}
-        <FadeIn index={6}>
+        <FadeIn index={7}>
           <Card style={{ padding: 12, gap: 12 }} onPress={() => navigation.navigate('Calm')}>
             <Garden points={gardenPoints} skyId={sky} />
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 4, paddingBottom: 2 }}>
@@ -184,7 +209,7 @@ export default function HomeScreen({ navigation }) {
         </FadeIn>
 
         {/* One thing to come back for, different every day. */}
-        <FadeIn index={7}>
+        <FadeIn index={8}>
           <TodayCard />
         </FadeIn>
 
@@ -201,7 +226,7 @@ export default function HomeScreen({ navigation }) {
         )}
 
         {/* Quick exercises */}
-        <FadeIn index={8} style={{ gap: 12 }}>
+        <FadeIn index={9} style={{ gap: 12 }}>
           <SectionHeader
             title={t('home.shortExercises')} actionLabel={t('common.viewAll')}
             onAction={() => navigation.navigate('Library')}
@@ -239,7 +264,7 @@ export default function HomeScreen({ navigation }) {
         </FadeIn>
 
         {/* Articles */}
-        <FadeIn index={9} style={{ gap: 12 }}>
+        <FadeIn index={10} style={{ gap: 12 }}>
           <SectionHeader
             title={t('home.guidanceArticles')} actionLabel={t('common.viewAll')}
             onAction={() => navigation.navigate('Library')}
