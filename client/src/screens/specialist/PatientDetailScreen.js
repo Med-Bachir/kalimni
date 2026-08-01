@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Screen, T, Card, Avatar, Badge, Button, BackButton, LevelBadge, LoadingView } from '../../components/ui';
 import AppointmentCard from '../../components/AppointmentCard';
 import ProposeSessionModal from '../../components/ProposeSessionModal';
+import AckAlertModal from '../../components/AckAlertModal';
 import MoodTrend from '../../components/MoodTrend';
 import { colors } from '../../theme/colors';
 import { useI18n } from '../../i18n';
@@ -34,13 +35,9 @@ export default function PatientDetailScreen({ navigation, route }) {
     enabled: !!patient.conversationId,
   });
 
-  const ack = useMutation({
-    mutationFn: (alertId) => api(`/safety/alerts/${alertId}/ack`, { method: 'POST' }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['safetyAlerts'] });
-      queryClient.invalidateQueries({ queryKey: ['patients'] });
-    },
-  });
+  // Acknowledging requires recording the clinical action taken — the modal
+  // collects it and the server refuses an empty ack (Phase 1.1).
+  const [ackAlert, setAckAlert] = useState(null);
 
   // AI companion: daily check-ins + the per-patient enable/disable control.
   const { data: checkinData } = useQuery({
@@ -104,7 +101,7 @@ export default function PatientDetailScreen({ navigation, route }) {
                 <T size={12} color={colors.dangerDark} style={{ lineHeight: 19 }}>{t('chat.protocolReminder')}</T>
                 <Button
                   title={t('specialist.ackAlert')} variant="danger" style={{ height: 44 }}
-                  onPress={() => ack.mutate(a.id)} loading={ack.isPending}
+                  onPress={() => setAckAlert(a)}
                 />
               </Card>
             ))
@@ -222,6 +219,8 @@ export default function PatientDetailScreen({ navigation, route }) {
           conversationId={patient.conversationId}
         />
       )}
+
+      <AckAlertModal alert={ackAlert} visible={!!ackAlert} onClose={() => setAckAlert(null)} />
     </Screen>
   );
 }

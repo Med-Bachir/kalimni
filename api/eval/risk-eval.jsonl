@@ -46,3 +46,20 @@
 {"text": "حاب نحكي معاك على مشكل في الخدمة مع الشاف", "expected": "none", "note": "work problem"}
 {"text": "وليدي صغير و يبكي بزاف في الليل، راني مقلقة", "expected": "none", "note": "parenting worry"}
 {"text": "j'ai arrêté de fumer cette semaine, fier de moi", "expected": "none", "note": "positive habit"}
+{"text":"يعني... ما نقدرش نكمل، والله عييت، راني نفكر نروح وخلاص","expected":"high","note":"voice transcript: disfluent Darija, wanting to leave for good"}
+{"text":"euh je sais pas... je me dis que ce serait plus simple si je disparaissais tu vois","expected":"high","note":"voice transcript: French fillers + passive ideation"}
+{"text":"smahli ki nhdar hakka bessah rani nfakar ndir 7aja fi rou7i had lyamat","expected":"high","note":"voice transcript: Arabizi apology + self-harm intent"}
+{"text":"واش راك تسمعني... حبيت غير نقولك بلي ماني حابش نعيش","expected":"high","note":"voice transcript: spoken Darija address + not wanting to live"}
+{"text":"يعني اليوم تعبت بزاف في الخدمة، رأسي راه يقتلني من الصداع","expected":"none","note":"voice transcript: headache killing-me idiom"}
+{"text":"alors euh la réunion m a tuée aujourd hui, je suis morte de fatigue","expected":"none","note":"voice transcript: French dead-tired idiom"}
+{"text":"hhh wallah had l examen ghadi yqatalni, mais nchallah ndouz","expected":"none","note":"voice transcript: exam-will-kill-me idiom + laughter"}
+{"text":"كنت نشوف فيلم البارح على واحد دار انتحار، حزنّي بصح الفيلم شباب","expected":"none","note":"voice transcript: describing a film about suicide"}
+{"text":"j ai peur de mourir, mon cœur bat très fort et je n arrive plus à respirer","expected":"none","note":"1.3 negative: panic attack fear-of-dying, no intent"}
+{"text":"راني خايف نموت، قلبي يخبط بزاف وما نقدرش نتنفس","expected":"none","note":"1.3 negative: Darija panic fear-of-dying"}
+{"text":"rani khayef nmout, galbi rah yderbi bezzaf","expected":"none","note":"1.3 negative: Arabizi panic fear-of-dying"}
+{"text":"depuis la mort de ma mère je pense beaucoup à la mort, elle me manque énormément","expected":"low","note":"1.3 negative: bereavement rumination, no self-harm"}
+{"text":"توفات جدتي الشهر اللي فات وما زلت نبكي عليها كل ليلة","expected":"low","note":"1.3 negative: grief over grandmother"}
+{"text":"شفت فيلم على واحد حاول ينتحر، أثر فيا بصح حبيت نحكي عليه","expected":"none","note":"1.3 negative: discussing a film about suicide"}
+{"text":"كنت نسمع في أغنية تقول نموت عليك يا بلادي","expected":"none","note":"1.3 negative: song lyric idiom (nmout 3lik)"}
+{"text":"nmout 3la couscous ta3 mama hhh","expected":"none","note":"1.3 negative: Arabizi love-it idiom (dying for it)"}
+{"text":"ma grand-mère est mourante à l hôpital, je passe mes journées là-bas","expected":"low","note":"1.3 negative: dying relative, patient distressed"}

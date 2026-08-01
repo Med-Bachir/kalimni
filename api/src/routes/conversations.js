@@ -58,9 +58,26 @@ router.get('/:id/messages', async (req, res) => {
   if (!conv || !chat.isMember(conv, req.user.id)) {
     return res.status(404).json({ error: 'conversation_not_found' });
   }
+  let messages = await chat.messagesOf(conv.id);
+
+  // Voice-note transcripts are attached for the SPECIALIST only: they exist
+  // for risk screening, and machine output is never shown back to the patient
+  // as if it were their words. Attached on COPIES — never mutate rows the
+  // data layer owns, that is how a field leaks into another viewer's payload.
+  if (req.user.id === conv.specialistId) {
+    const transcripts = await repos.voiceTranscriptsOf(conv.id);
+    const byMessage = new Map(transcripts.map((t) => [t.messageId, t]));
+    messages = messages.map((m) => {
+      if (!m.audioUrl) return m;
+      const t = byMessage.get(m.id);
+      // No row = sent before screening existed -> surface as unmonitored.
+      return { ...m, transcript: t ? { text: t.text, status: t.status } : { text: null, status: 'unavailable' } };
+    });
+  }
+
   res.json({
     conversation: await serializeConversation(conv, req.user.id),
-    messages: await chat.messagesOf(conv.id),
+    messages,
   });
 });
 
@@ -82,7 +99,10 @@ router.post('/:id/messages', async (req, res) => {
 });
 
 // POST /api/conversations/:id/voice — multipart: 'audio' file + durationMs.
-// Same guards as the text route; the safety scan is skipped (no text).
+// Same guards as the text route. The safety scan runs on the transcript,
+// asynchronously (voiceScreeningService) — slower than the keyword scan on
+// text, which is why voice is unavailable while a safety alert is open: in
+// that window the monitored text pathway is the only one offered.
 router.post('/:id/voice', voiceUpload.single('audio'), async (req, res) => {
   const cleanup = () => req.file && deleteVoiceFile(req.file.filename);
   const conv = await chat.findConversation(req.params.id);
@@ -93,6 +113,10 @@ router.post('/:id/voice', voiceUpload.single('audio'), async (req, res) => {
   if (req.user.role === 'specialist' && req.user.status !== 'approved') {
     cleanup();
     return res.status(403).json({ error: 'specialist_not_approved' });
+  }
+  if (req.user.role === 'patient' && (await repos.countOpenAlertsOf(req.user.id)) > 0) {
+    cleanup();
+    return res.status(403).json({ error: 'voice_unavailable_during_alert' });
   }
   if (!req.file) return res.status(400).json({ error: 'audio_required' });
 
@@ -106,6 +130,7 @@ router.post('/:id/voice', voiceUpload.single('audio'), async (req, res) => {
     sender: req.user,
     audioUrl: `/api/media/voice/${req.file.filename}`,
     audioDurationMs: durationMs || null,
+    audioFilePath: req.file.path,
   });
   res.status(201).json({ message });
 });

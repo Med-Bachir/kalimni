@@ -13,7 +13,9 @@ services:
       POSTGRES_USER: kalimni
       POSTGRES_PASSWORD: kalimni
     ports:
-      # 5432
+      # Host 5433 (avoids clashing with any local Postgres on 5432) -> matches
+      # DATABASE_URL postgres://kalimni:kalimni@localhost:5433/kalimni
+      - "5433:5432"
     volumes:
       - kalimni_pgdata:/var/lib/postgresql/data
     healthcheck:

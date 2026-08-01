@@ -125,7 +125,15 @@ export default function AICompanionScreen({ navigation }) {
         text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
-          await api('/ai/history', { method: 'DELETE' }).catch(() => {});
+          try {
+            await api('/ai/history', { method: 'DELETE' });
+          } catch (err) {
+            // The wipe is refused while a safety alert is open (the specialist
+            // still needs the thread). Say so instead of failing silently.
+            if (err?.code === 'crisis_hold_active') {
+              Alert.alert(t('companion.clearBlockedTitle'), t('companion.clearBlockedBody'));
+            }
+          }
           queryClient.invalidateQueries({ queryKey: ['aiHistory'] });
         },
       },

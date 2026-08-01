@@ -11,7 +11,7 @@ import {
 import { T, Avatar, BackButton, LoadingView, ErrorView } from './ui';
 import { colors } from '../theme/colors';
 import { useI18n } from '../i18n';
-import { api, apiUpload, getAuthToken } from '../api/client';
+import { api, apiUpload } from '../api/client';
 import { SOCKET_URL } from '../config';
 import { getSocket } from '../api/socket';
 import { useAuth } from '../store/auth';
@@ -26,19 +26,37 @@ const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart
 const MAX_RECORD_MS = 120_000; // matches the server cap
 
 // Playable voice-note bubble: play/pause, progress bar, duration.
+// The source is fetched on first play: a 60-second signed URL minted by the
+// API for this viewer and this file. (Audio players can't set an
+// Authorization header, and the old ?token= form wrote the account credential
+// into every proxy and server access log.)
 function VoiceBubble({ message, mine }) {
-  const player = useAudioPlayer({
-    uri: `${SOCKET_URL}${message.audioUrl}?token=${getAuthToken()}`,
-  });
+  const player = useAudioPlayer(null);
   const status = useAudioPlayerStatus(player);
+  const loaded = useRef(false);
+  const loading = useRef(false);
 
   const fg = mine ? '#fff' : colors.primary;
   const totalS = status.duration > 0 ? status.duration : (message.audioDurationMs || 0) / 1000;
   const shownS = status.playing || status.currentTime > 0 ? status.currentTime : totalS;
   const progress = totalS > 0 ? Math.min(status.currentTime / totalS, 1) : 0;
 
-  const toggle = () => {
+  const toggle = async () => {
     if (status.playing) return player.pause();
+    if (!loaded.current) {
+      if (loading.current) return undefined;
+      loading.current = true;
+      try {
+        const file = message.audioUrl.split('/').pop();
+        const { url } = await api(`/media/voice/${file}/url`, { method: 'POST' });
+        player.replace({ uri: `${SOCKET_URL}${url}` });
+        loaded.current = true;
+      } catch {
+        return undefined; // couldn't mint a URL — next tap retries
+      } finally {
+        loading.current = false;
+      }
+    }
     // Replay from the start once finished.
     if (status.didJustFinish || (totalS > 0 && status.currentTime >= totalS - 0.05)) player.seekTo(0);
     return player.play();
@@ -160,6 +178,13 @@ export default function ChatView({ conversationId, onBack, navigation }) {
       });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
     },
+    onError: (err) => {
+      // While a safety alert is open, only the monitored text pathway is
+      // offered (voice screening is async and slower). Say so, gently.
+      if (err?.code === 'voice_unavailable_during_alert') {
+        Alert.alert(t('chat.voiceBlockedTitle'), t('chat.voiceBlockedBody'));
+      }
+    },
   });
 
   const startRecording = async () => {
@@ -277,6 +302,27 @@ export default function ChatView({ conversationId, onBack, navigation }) {
           }}>
             <T w="700" size={12} color={colors.dangerDark}>{t('chat.flaggedMessage')}</T>
             <T size={11.5} color={colors.dangerDark} style={{ lineHeight: 18 }}>{t('chat.protocolReminder')}</T>
+          </View>
+        )}
+        {/* Voice screening state — specialist only (the API attaches
+            `transcript` solely for the specialist member). A voice note is
+            never silently unmonitored: done -> machine transcript, pending ->
+            in progress, failed/unavailable -> "listen yourself". */}
+        {user.role === 'specialist' && !mine && m.audioUrl && m.transcript && (
+          <View style={{
+            maxWidth: '78%', marginTop: 4, backgroundColor: colors.bgSoft,
+            borderRadius: 10, padding: 10, gap: 3,
+          }}>
+            {m.transcript.status === 'done' && m.transcript.text ? (
+              <>
+                <T w="700" size={11} color={colors.faint}>{t('chat.voiceTranscript')}</T>
+                <T size={12} color={colors.body} style={{ lineHeight: 19 }}>{m.transcript.text}</T>
+              </>
+            ) : (
+              <T size={11.5} color={colors.muted} style={{ lineHeight: 18 }}>
+                {t(m.transcript.status === 'pending' ? 'chat.voiceTranscriptPending' : 'chat.voiceUnmonitored')}
+              </T>
+            )}
           </View>
         )}
       </View>

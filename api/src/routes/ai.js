@@ -49,12 +49,16 @@ router.post('/chat', rateLimit, async (req, res) => {
 // GET /api/ai/history — thread + state + crisis resources (for the banner).
 router.get('/history', async (req, res) => {
   const conversation = await repos.getOrCreateAiConversation(req.user.id);
-  const [messages, state] = await Promise.all([
+  const [messages, state, openHold] = await Promise.all([
     repos.aiMessagesOf(conversation.id, 100),
     repos.getAiState(conversation.id),
+    repos.hasOpenAiHoldAlert(req.user.id),
   ]);
   res.json({
-    conversation,
+    // The hold is derived from the open HOLD-alert, not the row
+    // (companionService): report it the same way so a recreated thread still
+    // shows the banner. Cleared-keyword alerts don't pause the companion.
+    conversation: openHold ? { ...conversation, status: 'crisis_hold' } : conversation,
     messages,
     state: state ? { emotion: state.emotion, topics: state.topics } : null,
     aiEnabled: aiEnabled(req.user),
@@ -63,7 +67,14 @@ router.get('/history', async (req, res) => {
 });
 
 // DELETE /api/ai/history — privacy: patient wipes their AI thread entirely.
+// Refused while a crisis HOLD is open: recreating the thread must never
+// clear the hold, and the thread is the specialist's context for the
+// intervention they have not yet made. (A cleared-keyword alert without a
+// hold does not block the patient's right to wipe.)
 router.delete('/history', async (req, res) => {
+  if (await repos.hasOpenAiHoldAlert(req.user.id)) {
+    return res.status(409).json({ error: 'crisis_hold_active', resources: CRISIS_RESOURCES });
+  }
   await repos.deleteAiThread(req.user.id);
   res.json({ deleted: true });
 });

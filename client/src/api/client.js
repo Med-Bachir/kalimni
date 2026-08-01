@@ -1,12 +1,12 @@
 import { API_URL } from '../config';
 
 // The auth token is injected by the auth store to avoid a require cycle.
+// (Voice-note playback does NOT use it in a URL: media URLs are short-lived
+// signed grants minted by POST /api/media/voice/:file/url — see ChatView.)
 let authToken = null;
 export const setAuthToken = (token) => {
   authToken = token;
 };
-// Media URLs (voice notes) authenticate via ?token= — players can't set headers.
-export const getAuthToken = () => authToken;
 
 export class ApiError extends Error {
   constructor(code, status) {

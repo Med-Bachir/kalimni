@@ -56,4 +56,28 @@ const scanForRisk = (text) => {
   return NORMALIZED_PATTERNS.some((p) => value.includes(p));
 };
 
-module.exports = { CRISIS_RESOURCES, scanForRisk };
+// Much broader death/self-harm-ADJACENT vocabulary (single stems across MSA,
+// Darija, Arabizi and French). Deliberately over-broad, and used ONLY to
+// decide the fail-closed direction when the LLM classifier returns something
+// unparseable (riskService): on adjacent vocabulary an unreadable verdict is
+// treated as "high". It must never gate alerts or holds on its own.
+const RISK_ADJACENT_PATTERNS = [
+  // Arabic stems
+  'موت', 'اموت', 'نموت', 'الموت', 'انتحار', 'انتحر', 'اذي', 'ايذاء', 'اذية',
+  'وداع', 'سامحوني', 'ارتاح', 'نرتاح', 'اختفي', 'نهاية', 'اعيش', 'نعيش', 'خلاص',
+  // Arabizi / Darija latin
+  'mout', 'nmout', 'mot ', 'n3ich', '3ich', 'nrtah', 'nertah', 'rou7i', 'rasi',
+  'khlas', 'nkhlas', 'nemchi men had denya', 'wada3',
+  // French
+  'mort', 'mour', 'tuer', 'suicid', 'vivre', 'finir', 'disparai', 'adieu',
+  // English (mixed-language messages)
+  'die', 'death', 'kill', 'suicide', 'end it', 'goodbye',
+];
+const NORMALIZED_ADJACENT = RISK_ADJACENT_PATTERNS.map(normalize);
+
+const scanForRiskAdjacent = (text) => {
+  const value = normalize(text || '');
+  return NORMALIZED_ADJACENT.some((p) => value.includes(p));
+};
+
+module.exports = { CRISIS_RESOURCES, scanForRisk, scanForRiskAdjacent };

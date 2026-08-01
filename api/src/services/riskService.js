@@ -17,9 +17,19 @@
 //   - No key configured -> layer 2 is silently off; layer 1 still protects.
 const config = require('../config');
 const repos = require('../data/repos');
-const { emitToUser, emitToAdmins } = require('../realtime');
-const push = require('./pushService');
+const { emitToUser } = require('../realtime');
 const llm = require('./llmClient');
+const alerts = require('./alertService');
+const { scanForRiskAdjacent } = require('../utils/safety');
+
+// Health signals for GET /api/health/safety — a dead layer 2 must be visible
+// to operators, not discovered during an incident (Phase 1.2).
+const health = {
+  lastClassifiedAt: null,
+  lastErrorAt: null,
+  lastError: null,
+};
+const healthSnapshot = () => ({ ...health });
 
 const SYSTEM_PROMPT = `You are a clinical safety classifier for "Kalimni", a teletherapy chat app used in Algeria. You read ONE message a patient sent to their therapist and assess the PATIENT'S OWN risk of suicide or self-harm. This is a safety net: a missed warning (false negative) is far more harmful than a false alarm, so when genuinely unsure between two levels, ALWAYS pick the higher one.
 
@@ -75,7 +85,10 @@ const FEW_SHOTS = [
 
 /**
  * Classifies one message. Returns { risk, confidence, reason } or null when
- * the classifier is not configured. Retries transient failures, then throws.
+ * the classifier is not configured. Retries transient failures, then throws —
+ * EXCEPT unparseable model output on a message with death/self-harm-adjacent
+ * vocabulary, which fails CLOSED as "high": a broken output format must never
+ * quietly disable layer 2 for exactly the messages it exists for.
  */
 async function classify(text) {
   if (!config.aiApiKey) return null;
@@ -87,11 +100,27 @@ async function classify(text) {
   }
   messages.push({ role: 'user', content: String(text).slice(0, 2000) });
 
-  // Room for the ~40-token JSON reply (generous for Gemini thinking tokens).
-  const parsed = await llm.chatJson(messages, { maxTokens: 512, temperature: 0, tag: 'risk' });
+  let parsed;
+  try {
+    // Room for the ~40-token JSON reply (generous for Gemini thinking tokens).
+    parsed = await llm.chatJson(messages, { maxTokens: 512, temperature: 0, tag: 'risk' });
+  } catch (err) {
+    health.lastErrorAt = new Date().toISOString();
+    health.lastError = String(err.message).slice(0, 200);
+    if (err.parseError && scanForRiskAdjacent(text)) {
+      console.error('[risk] unparseable classifier output on risk-adjacent text — failing CLOSED as high');
+      return { risk: 'high', confidence: 0, reason: 'classifier_unparseable_fail_closed' };
+    }
+    throw err;
+  }
   if (!['none', 'low', 'high'].includes(parsed.risk)) {
+    if (scanForRiskAdjacent(text)) {
+      console.error('[risk] invalid risk value on risk-adjacent text — failing CLOSED as high');
+      return { risk: 'high', confidence: 0, reason: 'classifier_bad_value_fail_closed' };
+    }
     throw new Error(`ai_bad_risk_value: ${JSON.stringify(parsed).slice(0, 100)}`);
   }
+  health.lastClassifiedAt = new Date().toISOString();
   return {
     risk: parsed.risk,
     confidence: Math.max(0, Math.min(1, Number(parsed.confidence) || 0)),
@@ -101,33 +130,32 @@ async function classify(text) {
 
 /**
  * Fire-and-forget scan of a just-sent patient message. On "high": flags the
- * message, opens a safety alert and notifies specialist + admins — the same
- * pipeline the keyword scan uses. Skips messages the keywords already flagged.
+ * message and raises a safety alert through alertService (same pipeline the
+ * keyword scan uses). Skips messages the keywords already flagged. `text`
+ * defaults to the stored message text; voiceScreeningService passes the
+ * transcript instead (voice rows store text = '').
+ *
+ * Returns true when the scan CONCLUDED (including "nothing to do") and false
+ * when it failed — a failure is recorded in risk_scan_failures and retried by
+ * the escalation worker, never silently dropped (Phase 1.2).
  */
-async function scanMessageAsync({ message, sender, conversation }) {
-  if (!config.aiApiKey) return;
-  if (sender.role !== 'patient') return;
-  if (message.riskFlag) return; // layer 1 already alerted
+async function scanMessageAsync({ message, sender, conversation, text = message.text }) {
+  if (!config.aiApiKey) return true;
+  if (sender.role !== 'patient') return true;
+  if (message.riskFlag) return true; // layer 1 already alerted
 
   try {
-    const result = await classify(message.text);
-    if (!result) return;
+    const result = await classify(text);
+    if (!result) return true;
 
     if (result.risk !== 'high') {
       if (result.risk === 'low') {
         console.log(`[risk] low (${result.confidence.toFixed(2)}) msg=${message.id}: ${result.reason}`);
       }
-      return;
+      return true;
     }
 
     const flagged = await repos.setMessageRiskFlag(message.id);
-    const alert = await repos.insertSafetyAlert({
-      patientId: sender.id,
-      specialistId: conversation.specialistId,
-      messageId: message.id,
-      source: 'chat',
-      status: 'open',
-    });
     console.log(`[risk] HIGH (${result.confidence.toFixed(2)}) msg=${message.id}: ${result.reason}`);
 
     // The message was already delivered with riskFlag=false (this scan runs
@@ -137,13 +165,24 @@ async function scanMessageAsync({ message, sender, conversation }) {
     emitToUser(conversation.specialistId, 'message:update', { message: flagged });
     emitToUser(sender.id, 'message:update', { message: flagged });
 
-    emitToUser(conversation.specialistId, 'safety:alert', { alert, message: flagged });
-    emitToAdmins('safety:alert', { alert, message: flagged });
-    push.pushSafetyAlert({ alert, patient: sender });
+    await alerts.raiseAlert({
+      patient: sender,
+      source: 'chat',
+      messageId: message.id,
+      message: flagged,
+      detail: { classifier: result.reason },
+    });
+    return true;
   } catch (err) {
-    // Never let the AI layer take chat down with it.
+    // Never let the AI layer take chat down with it — but never lose the
+    // scan either: dead-letter it for the worker to retry.
     console.error('[risk] classification failed:', err.message);
+    const kind = message.audioUrl ? 'voice' : 'chat';
+    await repos
+      .upsertRiskScanFailure({ kind, messageId: message.id, error: err.message })
+      .catch((e) => console.error('[risk] dead-letter write failed:', e.message));
+    return false;
   }
 }
 
-module.exports = { classify, scanMessageAsync };
+module.exports = { classify, scanMessageAsync, healthSnapshot };

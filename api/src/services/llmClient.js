@@ -84,10 +84,40 @@ async function chat(messages, { maxTokens = 512, temperature = 0, json = false, 
   }
 }
 
-/** chat() + strip markdown fences + JSON.parse. */
+/**
+ * chat() + parse the JSON out of whatever the model produced. Escalating
+ * recovery (Phase 1.2 — a model that drifts into prose must not silently
+ * disable its caller): strip fences -> extract the first {...} block -> one
+ * repair round-trip asking the model to re-emit only the JSON. If all fail,
+ * throws with err.parseError = true so safety callers can fail CLOSED.
+ */
+const stripFences = (s) => String(s).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+
 async function chatJson(messages, opts = {}) {
   const raw = await chat(messages, { ...opts, json: true });
-  return JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''));
+  try {
+    return JSON.parse(stripFences(raw));
+  } catch { /* keep going */ }
+  const block = raw.match(/\{[\s\S]*\}/);
+  if (block) {
+    try {
+      return JSON.parse(block[0]);
+    } catch { /* keep going */ }
+  }
+  try {
+    const repaired = await chat(
+      [
+        { role: 'system', content: 'Return ONLY the valid JSON object contained in the user message. No prose, no markdown fences, no commentary.' },
+        { role: 'user', content: raw.slice(0, 4000) },
+      ],
+      { maxTokens: opts.maxTokens || 512, temperature: 0, json: true, timeoutMs: opts.timeoutMs, tag: `${opts.tag || 'llm'}-repair` }
+    );
+    return JSON.parse(stripFences(repaired));
+  } catch {
+    const err = new Error(`ai_unparseable_json [${opts.tag || 'llm'}]: ${raw.slice(0, 120)}`);
+    err.parseError = true;
+    throw err;
+  }
 }
 
 module.exports = { chat, chatJson, isConfigured };

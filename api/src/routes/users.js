@@ -37,19 +37,23 @@ router.get('/me/specialist', async (req, res) => {
 });
 
 // POST /api/users/me/push-token { token, platform? } — register this device
-// for push notifications. Upserts, so re-registering is harmless.
+// for push notifications. Upserts, so re-registering is harmless. 409 when the
+// token is still bound to another account (its owner must log out first —
+// see savePushToken for why re-parenting is refused).
 router.post('/me/push-token', async (req, res) => {
   const { token, platform } = req.body || {};
   if (!token || typeof token !== 'string') return res.status(400).json({ error: 'token_required' });
-  await repos.savePushToken(req.user.id, token, platform ? String(platform) : null);
+  const saved = await repos.savePushToken(req.user.id, token, platform ? String(platform) : null);
+  if (!saved) return res.status(409).json({ error: 'token_owned_by_other_account' });
   res.json({ ok: true });
 });
 
 // DELETE /api/users/me/push-token { token } — called on logout so the device
-// stops receiving another account's notifications.
+// stops receiving this account's notifications. Owner-scoped: a token string
+// in someone else's hands must not be able to silence another user's alerts.
 router.delete('/me/push-token', async (req, res) => {
   const { token } = req.body || {};
-  if (token) await repos.deletePushToken(String(token));
+  if (token) await repos.deletePushTokenOwned(req.user.id, String(token));
   res.json({ ok: true });
 });
 

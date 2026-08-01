@@ -1,14 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, ScrollView, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { Screen, T, Card, Avatar, Badge, SectionHeader, LoadingView, ErrorView } from '../../components/ui';
+import { Screen, T, Card, Avatar, Badge, Button, SectionHeader, LoadingView, ErrorView } from '../../components/ui';
+import AckAlertModal from '../../components/AckAlertModal';
 import { colors } from '../../theme/colors';
 import { useI18n } from '../../i18n';
 import { useAuth } from '../../store/auth';
 import { api } from '../../api/client';
-import { localizeDigits } from '../../utils/format';
+import { localizeDigits, formatDate } from '../../utils/format';
 
 export const statusBadge = (status, t) =>
   ({
@@ -25,6 +26,16 @@ export default function AdminDashboardScreen({ navigation }) {
 
   const stats = useQuery({ queryKey: ['adminStats'], queryFn: () => api('/admin/stats') });
   const requests = useQuery({ queryKey: ['adminRequests'], queryFn: () => api('/admin/requests') });
+  // Alerts that sat unacknowledged for 60+ minutes (escalation tier 2). The
+  // banner below cannot be dismissed — it leaves when the alert is
+  // acknowledged with a recorded action, not before. Polled as a backstop for
+  // the safety:critical socket event.
+  const critical = useQuery({
+    queryKey: ['criticalAlerts'],
+    queryFn: () => api('/safety/alerts/critical'),
+    refetchInterval: 60_000,
+  });
+  const [ackAlert, setAckAlert] = useState(null);
 
   if (stats.isLoading || requests.isLoading) return <LoadingView />;
   if (stats.isError || requests.isError) {
@@ -35,8 +46,42 @@ export default function AdminDashboardScreen({ navigation }) {
   const latest = (requests.data.requests || []).slice(0, 4);
   const n = (v) => localizeDigits(v, lang);
 
+  const criticalAlerts = critical.data?.alerts || [];
+
   return (
     <Screen>
+      {/* CRITICAL: crisis alerts unattended for over an hour. Pinned above
+          everything, no dismiss control — acknowledging (with the action
+          taken) is the only way it leaves the screen. */}
+      {criticalAlerts.length > 0 && (
+        <View style={{
+          margin: 16, marginBottom: 0, backgroundColor: colors.dangerBg, borderRadius: 16,
+          borderWidth: 2, borderColor: colors.dangerDark, padding: 14, gap: 10,
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Ionicons name="alert-circle" size={22} color={colors.dangerDark} />
+            <T w="700" size={15} color={colors.dangerDark}>{t('admin.criticalTitle')}</T>
+          </View>
+          <T size={12.5} color={colors.dangerDark} style={{ lineHeight: 19 }}>{t('admin.criticalBody')}</T>
+          {criticalAlerts.map((a) => (
+            <View key={a.id} style={{
+              flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card,
+              borderRadius: 12, padding: 12,
+            }}>
+              <Avatar name={a.patient?.name} size={40} />
+              <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
+                <T w="700" size={14}>{a.patient?.name}</T>
+                <T size={11.5} color={colors.muted}>{formatDate(a.createdAt, lang)}</T>
+              </View>
+              <Button
+                title={t('specialist.ackAlert')} variant="danger" style={{ height: 40, paddingHorizontal: 14 }}
+                onPress={() => setAckAlert(a)}
+              />
+            </View>
+          ))}
+        </View>
+      )}
+
       <ScrollView contentContainerStyle={{ padding: 22, gap: 18 }} showsVerticalScrollIndicator={false}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View style={{ gap: 2 }}>
@@ -122,6 +167,8 @@ export default function AdminDashboardScreen({ navigation }) {
           </View>
         </View>
       </ScrollView>
+
+      <AckAlertModal alert={ackAlert} visible={!!ackAlert} onClose={() => setAckAlert(null)} />
     </Screen>
   );
 }

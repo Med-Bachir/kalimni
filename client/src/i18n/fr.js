@@ -171,6 +171,11 @@ export default {
     flaggedMessage: 'Message signalé : risque possible',
     protocolReminder: "Protocole de crise : contactez immédiatement, évaluez le risque, orientez vers les urgences si nécessaire.",
     callButton: 'Appel',
+    voiceTranscript: 'Transcription automatique (visible par vous seul)',
+    voiceTranscriptPending: 'Transcription du message vocal en cours pour analyse...',
+    voiceUnmonitored: 'Message vocal non analysé automatiquement — écoutez-le vous-même',
+    voiceBlockedTitle: 'Messages vocaux suspendus',
+    voiceBlockedBody: 'Par précaution, écrivez votre message en texte jusqu’à ce que votre spécialiste vous contacte.',
   },
   call: {
     secure: 'Appel sécurisé et chiffré',
@@ -498,6 +503,8 @@ export default {
     fieldCategory: 'Catégorie',
     fieldType: 'Type',
     safetyOpen: 'Alertes de sécurité ouvertes : {n}',
+    criticalTitle: 'Alerte critique : situation à risque sans suivi',
+    criticalBody: 'Une alerte de sécurité est restée plus d’une heure sans prise en charge. Intervenez maintenant ou désignez un spécialiste immédiatement.',
     roleLabels: { patient: 'Patient', specialist: 'Spécialiste', admin: 'Admin' },
     specialistStatus: { approved: 'Actif', pending: 'En attente', rejected: 'Rejeté' },
     unpublishedBadge: 'Non publié',
@@ -524,6 +531,8 @@ export default {
     clear: 'Effacer la conversation',
     clearConfirmTitle: 'Effacer la conversation du compagnon ?',
     clearConfirmBody: 'Tous les messages de cette conversation seront définitivement supprimés.',
+    clearBlockedTitle: 'Effacement impossible pour le moment',
+    clearBlockedBody: 'Votre spécialiste consulte votre dernière conversation pour prendre de vos nouvelles. Vous pourrez l’effacer après son passage.',
     starter1: "Je me sens anxieux aujourd'hui",
     starter2: 'Aide-moi à mieux dormir',
     starter3: 'Je veux un exercice de respiration',
@@ -886,5 +895,14 @@ export default {
         kinder: 'Si mes échecs m’appartiennent, mes réussites aussi. Je ne peux pas appliquer deux règles différentes.',
       },
     },
+  },
+
+  // Acquitter une alerte de sécurité = consigner l'action clinique menée.
+  safetyAck: {
+    title: 'Consigner l’action menée',
+    hint: 'Avant de fermer l’alerte, notez ce que vous avez réellement fait : appel au patient, évaluation du risque, orientation vers les urgences... Ce registre fait partie du dossier de sécurité.',
+    placeholder: 'Ex. : j’ai appelé le patient, évalué la situation, et convenu d’une séance demain matin.',
+    confirm: 'Consigner et fermer l’alerte',
+    tooShort: 'Décrivez l’action menée — l’alerte ne peut pas être fermée sans consignation.',
   },
 };

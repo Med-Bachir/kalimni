@@ -146,6 +146,10 @@ const audioUrlsOfSender = async (senderId) =>
 
 const findMessage = (id) => one('SELECT * FROM messages WHERE id = $1', [id]);
 
+// Ownership lookup for the media route: which message carries this voice file?
+const findMessageByAudioUrl = (audioUrl) =>
+  one('SELECT * FROM messages WHERE audio_url = $1 LIMIT 1', [audioUrl]);
+
 // Used by the async LLM risk layer when it catches what keywords missed.
 const setMessageRiskFlag = (id) =>
   one('UPDATE messages SET risk_flag = true WHERE id = $1 RETURNING *', [id]);
@@ -175,6 +179,31 @@ async function markConversationRead(conversationId, readerId) {
     readAt: res.rows[0] ? res.rows[0].read_at.toISOString() : null,
   };
 }
+
+// --- voice transcripts -----------------------------------------------------------
+// Safety-net transcripts of voice notes. Specialist-eyes-only by design: they
+// are joined into responses ONLY by the specialist read path, never serialized
+// with the message row itself (see db/migrations/002 for the rationale).
+
+const saveVoiceTranscript = ({ messageId, text, status }) =>
+  one(
+    `INSERT INTO voice_transcripts (message_id, text, status)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (message_id) DO UPDATE SET text = $2, status = $3
+     RETURNING *`,
+    [messageId, text || null, status]
+  );
+
+const voiceTranscriptsOf = (conversationId) =>
+  all(
+    `SELECT vt.* FROM voice_transcripts vt
+     JOIN messages m ON m.id = vt.message_id
+     WHERE m.conversation_id = $1`,
+    [conversationId]
+  );
+
+const getVoiceTranscript = (messageId) =>
+  one('SELECT * FROM voice_transcripts WHERE message_id = $1', [messageId]);
 
 // --- questionnaire results -------------------------------------------------------
 
@@ -344,6 +373,112 @@ const countOpenAlertsOf = async (patientId) =>
     `SELECT count(*)::int AS n FROM safety_alerts WHERE patient_id = $1 AND status = 'open'`,
     [patientId]
   )).rows[0].n;
+
+const openSafetyAlerts = () =>
+  all(`SELECT * FROM safety_alerts WHERE status = 'open' ORDER BY created_at`);
+
+// What a specialist may see: alerts where they are the treating clinician OR
+// were paged for it (on-call cover for unassigned patients — the audit rows
+// in alert_escalations are the source of that grant).
+const listSafetyAlertsVisibleTo = (specialistId) =>
+  all(
+    `SELECT DISTINCT sa.* FROM safety_alerts sa
+     LEFT JOIN alert_escalations ae ON ae.alert_id = sa.id
+     WHERE sa.specialist_id = $1 OR ae.notified_id = $1
+     ORDER BY sa.created_at DESC`,
+    [specialistId]
+  );
+
+// Open alerts that reached tier 2 (60 min unacknowledged) — the admin
+// dashboard banner that cannot be dismissed while any of these exist.
+const listCriticalOpenAlerts = () =>
+  all(
+    `SELECT DISTINCT sa.* FROM safety_alerts sa
+     JOIN alert_escalations ae ON ae.alert_id = sa.id AND ae.tier = 2
+     WHERE sa.status = 'open'
+     ORDER BY sa.created_at`
+  );
+
+// --- on-call rota (escalation ladder, Phase 1.1) ---------------------------------
+
+const insertOnCallRota = (r) =>
+  one(
+    `INSERT INTO on_call_rota (id, specialist_id, tier, starts_at, ends_at)
+     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    [r.id || uid('rota'), r.specialistId, r.tier || 1, r.startsAt, r.endsAt]
+  );
+
+const deleteOnCallRota = async (id) =>
+  (await run('DELETE FROM on_call_rota WHERE id = $1', [id])).rowCount > 0;
+
+// Current + upcoming entries (admin management view).
+const listOnCallRota = () =>
+  all(`SELECT * FROM on_call_rota WHERE ends_at > now() ORDER BY starts_at, tier`);
+
+// Specialists covering `at` for the given tier, most recent shift first.
+const onCallSpecialistsAt = (at, tier) =>
+  all(
+    `SELECT * FROM on_call_rota
+     WHERE tier = $2 AND starts_at <= $1 AND ends_at > $1
+     ORDER BY starts_at DESC`,
+    [at, tier]
+  );
+
+// --- alert escalations (append-only page audit) ----------------------------------
+
+const insertAlertEscalation = (e) =>
+  one(
+    `INSERT INTO alert_escalations (id, alert_id, tier, notified_id, method, action_taken, notified_at)
+     VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, now())) RETURNING *`,
+    [e.id || uid('esc'), e.alertId, e.tier, e.notifiedId || null, e.method, e.actionTaken || null, e.notifiedAt || null]
+  );
+
+const escalationsOf = (alertId) =>
+  all('SELECT * FROM alert_escalations WHERE alert_id = $1 ORDER BY notified_at', [alertId]);
+
+// Was this user ever paged for this alert? (grants ack rights to on-call cover)
+const wasNotifiedForAlert = async (alertId, userId) =>
+  (await run(
+    'SELECT 1 FROM alert_escalations WHERE alert_id = $1 AND notified_id = $2 LIMIT 1',
+    [alertId, userId]
+  )).rowCount > 0;
+
+// Stamp every page row of the alert as acknowledged (audit closure).
+const ackAlertEscalations = (alertId, at) =>
+  run(
+    `UPDATE alert_escalations SET acknowledged_at = COALESCE($2, now())
+     WHERE alert_id = $1 AND acknowledged_at IS NULL`,
+    [alertId, at || null]
+  );
+
+// --- risk scan dead letters (Phase 1.2) ------------------------------------------
+
+// One row per message; repeated failures bump attempts.
+const upsertRiskScanFailure = ({ kind, messageId, error }) =>
+  one(
+    `INSERT INTO risk_scan_failures (id, kind, message_id, last_error)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (message_id) DO UPDATE SET
+       attempts = risk_scan_failures.attempts + 1,
+       last_error = $4,
+       retried_at = now()
+     RETURNING *`,
+    [uid('rsf'), kind, messageId, String(error || '').slice(0, 500)]
+  );
+
+const openRiskScanFailures = (limit = 10, maxAttempts = 5) =>
+  all(
+    `SELECT * FROM risk_scan_failures
+     WHERE resolved_at IS NULL AND attempts < $2
+     ORDER BY created_at LIMIT $1`,
+    [limit, maxAttempts]
+  );
+
+const resolveRiskScanFailure = (id) =>
+  run('UPDATE risk_scan_failures SET resolved_at = now() WHERE id = $1', [id]);
+
+const countOpenRiskScanFailures = async () =>
+  (await run('SELECT count(*)::int AS n FROM risk_scan_failures WHERE resolved_at IS NULL')).rows[0].n;
 
 // --- calls -----------------------------------------------------------------------
 
@@ -530,14 +665,41 @@ const bumpAiMessageCount = (conversationId, by = 1) =>
   );
 
 // Privacy: patient wipes their whole AI thread (messages + state cascade).
+// Alert rows survive as the clinical record, but detail.trigger is a verbatim
+// excerpt of the patient's own crisis message — "wipe my thread" must cover
+// it, so it is redacted here (risk level + classifier reason stay). Routes
+// refuse the wipe while an ai_chat alert is still OPEN, so a specialist never
+// loses the excerpt before having reviewed it.
 const deleteAiThread = (patientId) =>
-  run('DELETE FROM ai_conversations WHERE patient_id = $1', [patientId]);
+  tx(async (client) => {
+    await client.query(
+      `UPDATE safety_alerts
+       SET detail = (detail - 'trigger') || '{"triggerRedacted": true}'::jsonb
+       WHERE patient_id = $1 AND source = 'ai_chat' AND detail ? 'trigger'`,
+      [patientId]
+    );
+    await client.query('DELETE FROM ai_conversations WHERE patient_id = $1', [patientId]);
+  });
 
-// crisis_hold release check: any AI alert still awaiting human review?
+// Any open AI alert at all (suppresses the home-screen follow-up question).
 const hasOpenAiAlert = async (patientId) =>
   (await run(
     `SELECT 1 FROM safety_alerts
      WHERE patient_id = $1 AND source = 'ai_chat' AND status = 'open' LIMIT 1`,
+    [patientId]
+  )).rowCount > 0;
+
+// crisis_hold source of truth: an open AI alert that DEMANDED a hold. Alerts
+// where the classifier cleared a keyword hit carry detail.hold=false and page
+// the specialist without pausing support (Phase 1.3). Alerts created before
+// the split have no detail.hold — they always implied a hold, so missing
+// defaults to true.
+const hasOpenAiHoldAlert = async (patientId) =>
+  (await run(
+    `SELECT 1 FROM safety_alerts
+     WHERE patient_id = $1 AND source = 'ai_chat' AND status = 'open'
+       AND COALESCE((detail->>'hold')::boolean, true)
+     LIMIT 1`,
     [patientId]
   )).rowCount > 0;
 
@@ -561,14 +723,28 @@ const journalEntriesOf = (userId, limit = 30) =>
 const journalEntryCountOf = (userId) =>
   one('SELECT count(*)::int AS total FROM journal_entries WHERE user_id = $1', [userId]);
 
-const savePushToken = (userId, token, platform) =>
-  run(
+// Register/refresh this device's token. The ON CONFLICT update touches only
+// rows the caller already owns: knowing a token string must never be enough to
+// re-parent another user's device (that would silently redirect their pushes —
+// including safety-alert pages — to nobody). The logout/login-on-a-shared-phone
+// case is handled by the client deleting the token on logout, not by letting
+// any account claim any token. Returns false when the token belongs to
+// someone else.
+const savePushToken = async (userId, token, platform) =>
+  (await run(
     `INSERT INTO push_tokens (token, user_id, platform, updated_at)
      VALUES ($1, $2, $3, now())
-     ON CONFLICT (token) DO UPDATE SET user_id = $2, platform = $3, updated_at = now()`,
+     ON CONFLICT (token) DO UPDATE SET platform = $3, updated_at = now()
+     WHERE push_tokens.user_id = $2`,
     [token, userId, platform || null]
-  );
+  )).rowCount > 0;
 
+// User-initiated delete (logout): only the owner can remove a token.
+const deletePushTokenOwned = (userId, token) =>
+  run('DELETE FROM push_tokens WHERE token = $1 AND user_id = $2', [token, userId]);
+
+// Server-initiated delete: Expo reported the device token dead
+// (DeviceNotRegistered) — no user context, trusted caller (pushService only).
 const deletePushToken = (token) => run('DELETE FROM push_tokens WHERE token = $1', [token]);
 
 // Tokens joined with the owner's language + settings so the push layer can
@@ -588,8 +764,10 @@ module.exports = {
   // conversations
   findConversation, listConversationsOf, findConversationBetween, getOrCreateConversation,
   // messages
-  insertMessage, findMessage, setMessageRiskFlag, messagesOf, lastMessageOf, unreadCountFor, markConversationRead,
-  audioUrlsOfSender,
+  insertMessage, findMessage, findMessageByAudioUrl, setMessageRiskFlag, messagesOf, lastMessageOf,
+  unreadCountFor, markConversationRead, audioUrlsOfSender,
+  // voice transcripts
+  saveVoiceTranscript, voiceTranscriptsOf, getVoiceTranscript,
   // questionnaire results
   insertQuestionnaireResult, resultsOf, latestResultOf, latestResultsByQuestionnaire,
   // matching requests
@@ -599,17 +777,23 @@ module.exports = {
   listContent, findContent, insertContent, updateContent, deleteContent,
   // safety alerts
   insertSafetyAlert, findSafetyAlert, listSafetyAlerts, updateSafetyAlert, countOpenAlertsOf,
+  openSafetyAlerts, listSafetyAlertsVisibleTo, listCriticalOpenAlerts,
+  // escalation ladder
+  insertOnCallRota, deleteOnCallRota, listOnCallRota, onCallSpecialistsAt,
+  insertAlertEscalation, escalationsOf, wasNotifiedForAlert, ackAlertEscalations,
+  // risk scan dead letters
+  upsertRiskScanFailure, openRiskScanFailures, resolveRiskScanFailure, countOpenRiskScanFailures,
   // calls
   insertCall, findCall, findActiveCall, updateCall,
   // appointments
   insertAppointment, findAppointment, updateAppointment, appointmentsOfConversation,
   upcomingAppointmentsOf, nextAppointmentOf, nextAppointmentForConversation, hasOpenAppointment,
   // push tokens
-  savePushToken, deletePushToken, pushTargetsOf,
+  savePushToken, deletePushToken, deletePushTokenOwned, pushTargetsOf,
   // AI companion
   getOrCreateAiConversation, getAiConversation, lastAiMessageAt,
   setAiConversationStatus, insertAiMessage, aiMessagesOf,
-  getAiState, upsertAiState, bumpAiMessageCount, deleteAiThread, hasOpenAiAlert,
+  getAiState, upsertAiState, bumpAiMessageCount, deleteAiThread, hasOpenAiAlert, hasOpenAiHoldAlert,
   // journal / daily check-in
   insertJournalEntry, journalEntriesOf, journalEntryCountOf,
 };

@@ -2,8 +2,8 @@ const express = require('express');
 const repos = require('../data/repos');
 const { QUESTIONNAIRES, getQuestionnaire, scoreQuestionnaire } = require('../data/questionnaires');
 const { requireAuth } = require('../middleware/auth');
-const { emitToUser, emitToAdmins } = require('../realtime');
-const push = require('../services/pushService');
+const { emitToAdmins } = require('../realtime');
+const alerts = require('../services/alertService');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -43,16 +43,10 @@ router.post('/:id/submit', async (req, res) => {
     emitToAdmins('matching:new', { request: matchingRequest });
   }
 
-  // PHQ-9 item 9 safety protocol: alert assigned specialist (or admins).
+  // PHQ-9 item 9 safety protocol: page through the escalation ladder
+  // (assigned specialist, or the on-call rota for unassigned patients).
   if (scored.crisisFlag) {
-    const alert = await repos.insertSafetyAlert({
-      patientId: req.user.id,
-      specialistId: req.user.assignedSpecialistId || null,
-      resultId: result.id, source: 'questionnaire', status: 'open',
-    });
-    if (alert.specialistId) emitToUser(alert.specialistId, 'safety:alert', { alert });
-    emitToAdmins('safety:alert', { alert });
-    push.pushSafetyAlert({ alert, patient: req.user }); // fire-and-forget
+    await alerts.raiseAlert({ patient: req.user, source: 'questionnaire', resultId: result.id });
   }
 
   res.status(201).json({ result, matchingRequest });

@@ -17,9 +17,8 @@ const repos = require('../data/repos');
 const llm = require('./llmClient');
 const rag = require('./ragService');
 const risk = require('./riskService');
+const alerts = require('./alertService');
 const { scanForRisk, CRISIS_RESOURCES } = require('../utils/safety');
-const { emitToUser, emitToAdmins } = require('../realtime');
-const push = require('./pushService');
 
 const HISTORY_MESSAGES = 10; // verbatim tail sent to the LLM
 const SUMMARY_EVERY = 8;     // exchanges between summary refreshes
@@ -157,21 +156,17 @@ async function handleCrisis(user, conversation, text, riskInfo) {
   });
   await repos.setAiConversationStatus(conversation.id, 'crisis_hold');
 
-  const alert = await repos.insertSafetyAlert({
-    patientId: user.id,
-    specialistId: user.assignedSpecialistId || null,
+  const alert = await alerts.raiseAlert({
+    patient: user,
     source: 'ai_chat',
-    status: 'open',
     detail: {
       risk: 'high',
+      hold: true,
       trigger: String(text).slice(0, 200),
       aiConversationId: conversation.id,
       classifier: riskInfo?.reason || 'keyword',
     },
   });
-  if (user.assignedSpecialistId) emitToUser(user.assignedSpecialistId, 'safety:alert', { alert });
-  emitToAdmins('safety:alert', { alert });
-  push.pushSafetyAlert({ alert, patient: user });
   console.log(`[companion] CRISIS for ${user.id} — alert ${alert.id} (${riskInfo?.reason || 'keyword scan'})`);
 
   return { reply, status: 'crisis_hold', resources: CRISIS_RESOURCES };
@@ -267,31 +262,61 @@ async function handleMessage(user, rawText) {
   const conversation = await repos.getOrCreateAiConversation(user.id);
 
   // --- safety gate (blocking) ---
+  // Two decisions, deliberately separate (Phase 1.3):
+  //   ALERT — keyword OR classifier. Never downgraded: the specialist always
+  //           hears about it, false positives included.
+  //   HOLD  — only when the classifier confirms "high", or when it cannot be
+  //           consulted (fail closed). A patient writing "j'ai peur de mourir"
+  //           in a panic attack needs support CONTINUED and their specialist
+  //           paged — not a lockout on a substring match.
   const keywordHit = scanForRisk(text);
   let riskInfo = null;
-  if (!keywordHit) {
-    try {
-      riskInfo = await risk.classify(text); // null when no key configured
-    } catch (err) {
-      // Classifier down: keywords stay as the net; generation prompt still
-      // refuses crisis handling. Never block support on classifier outage.
-      console.error('[companion] risk classify failed (keyword-only):', err.message);
-    }
+  let classifierAnswered = false;
+  try {
+    riskInfo = await risk.classify(text); // null when no key configured
+    classifierAnswered = riskInfo !== null;
+  } catch (err) {
+    console.error('[companion] risk classify failed:', err.message);
   }
-  if (keywordHit || riskInfo?.risk === 'high') {
+
+  if (riskInfo?.risk === 'high' || (keywordHit && !classifierAnswered)) {
     return handleCrisis(user, conversation, text, riskInfo);
+  }
+  if (keywordHit) {
+    // Keyword hit that the classifier read as not-high: page, don't pause.
+    const alert = await alerts.raiseAlert({
+      patient: user,
+      source: 'ai_chat',
+      detail: {
+        risk: riskInfo.risk,
+        hold: false,
+        keywordHit: true,
+        trigger: String(text).slice(0, 200),
+        aiConversationId: conversation.id,
+        classifier: riskInfo.reason,
+      },
+    });
+    console.log(`[companion] keyword hit cleared by classifier (${riskInfo.risk}) for ${user.id} — alert ${alert.id}, no hold`);
   }
 
   // --- crisis hold: only resources until a human has reviewed the alert ---
-  if (conversation.status === 'crisis_hold') {
-    if (await repos.hasOpenAiAlert(user.id)) {
-      const reply = await repos.insertAiMessage({
-        conversationId: conversation.id,
-        role: 'crisis',
-        text: CRISIS_HOLD_REPLY[user.language] || CRISIS_HOLD_REPLY.ar,
-      });
-      return { reply, status: 'crisis_hold', resources: CRISIS_RESOURCES };
+  // The hold is derived from the OPEN HOLD-ALERT, never from
+  // conversation.status alone: a patient can wipe the thread (DELETE
+  // /api/ai/history is refused during a hold, but belt-and-braces) and the
+  // recreated row would default to 'active' — the unreviewed alert is the
+  // source of truth. Cleared-keyword alerts (hold:false) do not pause support.
+  if (await repos.hasOpenAiHoldAlert(user.id)) {
+    if (conversation.status !== 'crisis_hold') {
+      await repos.setAiConversationStatus(conversation.id, 'crisis_hold');
     }
+    const reply = await repos.insertAiMessage({
+      conversationId: conversation.id,
+      role: 'crisis',
+      text: CRISIS_HOLD_REPLY[user.language] || CRISIS_HOLD_REPLY.ar,
+    });
+    return { reply, status: 'crisis_hold', resources: CRISIS_RESOURCES };
+  }
+  if (conversation.status === 'crisis_hold') {
     await repos.setAiConversationStatus(conversation.id, 'active'); // alert reviewed -> resume
   }
 

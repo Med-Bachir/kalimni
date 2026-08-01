@@ -73,9 +73,11 @@ const pushNewMessage = ({ message, sender, recipientId }) =>
     { skipOnline: true }
   );
 
-// Safety alert -> assigned specialist. Always pushed, online or not.
-const pushSafetyAlert = ({ alert, patient }) =>
-  sendToUsers([alert.specialistId], (t) => ({
+// Safety alert -> the paged targets (assigned specialist by default; the
+// alert service passes on-call/admin recipients for unassigned patients).
+// Always pushed, online or not.
+const pushSafetyAlert = ({ alert, patient, recipients }) =>
+  sendToUsers(recipients || [alert.specialistId], (t) => ({
     title: L(t.language, 'تنبيه أمان ⚠️', 'Alerte de sécurité ⚠️'),
     body: L(
       t.language,

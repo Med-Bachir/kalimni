@@ -1,8 +1,10 @@
 const repos = require('../data/repos');
 const { scanForRisk } = require('../utils/safety');
-const { emitToUser, emitToAdmins } = require('../realtime');
+const { emitToUser } = require('../realtime');
 const push = require('./pushService');
 const risk = require('./riskService');
+const voiceScreening = require('./voiceScreeningService');
+const alerts = require('./alertService');
 
 const isMember = (conv, userId) =>
   conv && (conv.patientId === userId || conv.specialistId === userId);
@@ -13,10 +15,10 @@ const partnerOf = (conv, userId) =>
 /**
  * Persists a message, runs the safety scan on patient messages, and pushes
  * socket events to both participants (and admins on a safety hit).
- * Voice messages carry audioUrl/audioDurationMs with empty text; the safety
- * scan is text-based, so audio skips it (documented limitation).
+ * Voice messages carry audioUrl/audioDurationMs with empty text; their safety
+ * scan runs on the transcript (voiceScreeningService), fed by audioFilePath.
  */
-async function sendMessage({ conversation, sender, text = '', audioUrl, audioDurationMs }) {
+async function sendMessage({ conversation, sender, text = '', audioUrl, audioDurationMs, audioFilePath }) {
   const riskFlag = !audioUrl && sender.role === 'patient' && scanForRisk(text);
   const message = await repos.insertMessage({
     conversationId: conversation.id,
@@ -28,23 +30,18 @@ async function sendMessage({ conversation, sender, text = '', audioUrl, audioDur
   });
 
   if (riskFlag) {
-    const alert = await repos.insertSafetyAlert({
-      patientId: sender.id,
-      specialistId: conversation.specialistId,
-      messageId: message.id,
-      source: 'chat',
-      status: 'open',
-    });
-    emitToUser(conversation.specialistId, 'safety:alert', { alert, message });
-    emitToAdmins('safety:alert', { alert, message });
-    push.pushSafetyAlert({ alert, patient: sender }); // fire-and-forget
+    await alerts.raiseAlert({ patient: sender, source: 'chat', messageId: message.id, message });
   }
 
   const recipientId = partnerOf(conversation, sender.id);
   emitToUser(recipientId, 'message:new', { message });
   emitToUser(sender.id, 'message:new', { message });
   push.pushNewMessage({ message, sender, recipientId }); // fire-and-forget
-  if (!audioUrl) risk.scanMessageAsync({ message, sender, conversation }); // fire-and-forget LLM layer
+  if (audioUrl) {
+    voiceScreening.screenVoiceMessageAsync({ message, sender, conversation, filePath: audioFilePath }); // fire-and-forget
+  } else {
+    risk.scanMessageAsync({ message, sender, conversation }); // fire-and-forget LLM layer
+  }
   return message;
 }
 

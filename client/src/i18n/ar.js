@@ -171,6 +171,11 @@ export default {
     flaggedMessage: 'رسالة مُعلَّمة: قد تشير إلى خطر',
     protocolReminder: 'بروتوكول الأزمات: تواصل فوراً، قيّم الخطورة، ووجّه المريض لأرقام الطوارئ عند الحاجة.',
     callButton: 'مكالمة',
+    voiceTranscript: 'نص آلي (للمختص فقط)',
+    voiceTranscriptPending: 'جارٍ تحويل الرسالة الصوتية إلى نص للفحص...',
+    voiceUnmonitored: 'رسالة صوتية غير مفحوصة آلياً — استمع إليها بنفسك',
+    voiceBlockedTitle: 'الرسائل الصوتية متوقفة مؤقتاً',
+    voiceBlockedBody: 'حرصاً على سلامتك، اكتب رسالتك نصاً حتى يتواصل معك مختصك.',
   },
   call: {
     secure: 'مكالمة آمنة ومشفّرة',
@@ -498,6 +503,8 @@ export default {
     fieldCategory: 'التصنيف',
     fieldType: 'النوع',
     safetyOpen: 'تنبيهات أمان مفتوحة: {n}',
+    criticalTitle: 'تنبيه حرج: حالة خطر دون متابعة',
+    criticalBody: 'مرّت أكثر من ساعة على تنبيه أمان دون أن يطمئن أحد على المريض. تدخّل الآن أو كلّف مختصاً فوراً.',
     roleLabels: { patient: 'مريض', specialist: 'مختص', admin: 'مشرف' },
     specialistStatus: { approved: 'مفعّل', pending: 'قيد المراجعة', rejected: 'مرفوض' },
     unpublishedBadge: 'غير منشور',
@@ -524,6 +531,8 @@ export default {
     clear: 'مسح المحادثة',
     clearConfirmTitle: 'مسح محادثة الرفيق؟',
     clearConfirmBody: 'سيتم حذف كل رسائل هذه المحادثة نهائياً.',
+    clearBlockedTitle: 'لا يمكن المسح الآن',
+    clearBlockedBody: 'مختصك يطّلع حالياً على آخر محادثة للاطمئنان عليك. يمكنك مسح المحادثة بعد تواصله معك.',
     starter1: 'أشعر بالقلق اليوم',
     starter2: 'ساعدني على النوم بشكل أفضل',
     starter3: 'أريد تمرين تنفس',
@@ -886,5 +895,14 @@ export default {
         kinder: 'لو أن فشلي يخصّني، فنجاحي يخصّني أيضاً. لا يصحّ أن أُطبّق قاعدتين.',
       },
     },
+  },
+
+  // Acknowledging a safety alert = recording the clinical action taken.
+  safetyAck: {
+    title: 'توثيق الإجراء المتخذ',
+    hint: 'قبل إغلاق التنبيه، دوّن ما قمت به فعلاً: اتصال بالمريض، تقييم الخطورة، توجيه للطوارئ... هذا السجل جزء من ملف السلامة.',
+    placeholder: 'مثال: اتصلت بالمريض هاتفياً، قيّمت الحالة، واتفقنا على جلسة غداً صباحاً.',
+    confirm: 'توثيق وإغلاق التنبيه',
+    tooShort: 'يرجى وصف الإجراء الذي قمت به — لا يمكن إغلاق التنبيه دون توثيق.',
   },
 };

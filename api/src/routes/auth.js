@@ -1,5 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const { OAuth2Client } = require('google-auth-library');
 const repos = require('../data/repos');
 const { signToken } = require('../utils/tokens');
 const { publicUser } = require('../utils/serialize');
@@ -52,12 +53,36 @@ router.post('/login', async (req, res) => {
   res.json({ token: signToken(user), user: publicUser(user) });
 });
 
-// POST /api/auth/google { idToken } — mock mode accepts { email, name } directly.
-// TODO(production): verify idToken with google-auth-library and drop mock mode.
+// POST /api/auth/google { idToken } — the email is ONLY ever taken from a
+// verified Google ID token payload, never from the request body. The one
+// exception is mock mode ({ email, name } accepted as-is), which is
+// dev-only: config.js throws at boot if it is enabled in production.
+const googleClient = config.googleClientId ? new OAuth2Client(config.googleClientId) : null;
+
 router.post('/google', async (req, res) => {
-  if (!config.mockGoogleAuth) return res.status(501).json({ error: 'google_auth_not_configured' });
-  const { email, name } = req.body || {};
-  if (!email || !/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: 'email_invalid' });
+  let email;
+  let name;
+
+  if (config.mockGoogleAuth) {
+    ({ email, name } = req.body || {});
+    if (!email || !/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: 'email_invalid' });
+  } else {
+    if (!googleClient) return res.status(501).json({ error: 'google_auth_not_configured' });
+    const idToken = (req.body || {}).idToken;
+    if (!idToken || typeof idToken !== 'string') return res.status(401).json({ error: 'google_token_invalid' });
+    let payload;
+    try {
+      const ticket = await googleClient.verifyIdToken({ idToken, audience: config.googleClientId });
+      payload = ticket.getPayload();
+    } catch {
+      return res.status(401).json({ error: 'google_token_invalid' });
+    }
+    if (!payload?.email || payload.email_verified === false) {
+      return res.status(401).json({ error: 'google_token_invalid' });
+    }
+    email = payload.email;
+    name = payload.name;
+  }
 
   let user = await repos.findUserByEmail(email);
   if (!user) {

@@ -7,8 +7,9 @@
 
 DROP TABLE IF EXISTS
   content_embeddings, journal_entries, ai_state, ai_messages, ai_conversations,
-  push_tokens, appointments, safety_alerts, calls, messages, conversations,
-  matching_requests, questionnaire_results, content, users
+  push_tokens, appointments, risk_scan_failures, alert_escalations, on_call_rota,
+  safety_alerts, calls, voice_transcripts, messages,
+  conversations, matching_requests, questionnaire_results, content, users
 CASCADE;
 
 -- Vector similarity search for the AI companion's RAG layer (pgvector image).
@@ -63,6 +64,20 @@ CREATE TABLE messages (
 );
 CREATE INDEX messages_conversation_idx ON messages (conversation_id, created_at);
 CREATE INDEX messages_unread_idx ON messages (conversation_id, sender_id) WHERE read_at IS NULL;
+
+-- Voice-note transcripts: the safety net's view of audio messages (transcribed
+-- on upload, then risk-scanned like typed text). Deliberately a separate table
+-- rather than a messages column: message rows are serialized to BOTH parties
+-- (REST + socket), and the transcript is for the specialist only — machine
+-- output must never be shown back to the patient as if it were their words.
+-- Kept in sync with db/migrations/002_voice_transcripts.sql for live DBs.
+CREATE TABLE voice_transcripts (
+  message_id text PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+  text       text,
+  status     text NOT NULL DEFAULT 'pending'
+               CHECK (status IN ('pending', 'done', 'failed', 'unavailable')),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
 
 CREATE TABLE questionnaire_results (
   id               text PRIMARY KEY,
@@ -125,6 +140,52 @@ CREATE TABLE safety_alerts (
 );
 CREATE INDEX safety_alerts_specialist_idx ON safety_alerts (specialist_id, status);
 CREATE INDEX safety_alerts_patient_idx ON safety_alerts (patient_id, status);
+
+-- --- escalation ladder (Phase 1.1) -------------------------------------------
+-- Kept in sync with db/migrations/003_escalation_ladder.sql for live DBs.
+
+-- Who answers for UNASSIGNED patients. tier 1 = first page, tier 2 = the
+-- backup paged when 15 minutes pass without acknowledgement.
+CREATE TABLE on_call_rota (
+  id            text PRIMARY KEY,
+  specialist_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  tier          integer NOT NULL DEFAULT 1 CHECK (tier IN (1, 2)),
+  starts_at     timestamptz NOT NULL,
+  ends_at       timestamptz NOT NULL,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  CHECK (ends_at > starts_at)
+);
+CREATE INDEX on_call_rota_window_idx ON on_call_rota (starts_at, ends_at);
+
+-- Append-only audit of every page for an alert (tier 0 = creation page,
+-- tier 1 = 15-min re-page, tier 2 = 60-min admin broadcast; 'ack' rows record
+-- the acknowledging user's clinical action_taken).
+CREATE TABLE alert_escalations (
+  id              text PRIMARY KEY,
+  alert_id        text NOT NULL REFERENCES safety_alerts(id) ON DELETE CASCADE,
+  tier            integer NOT NULL CHECK (tier BETWEEN 0 AND 2),
+  notified_id     text REFERENCES users(id) ON DELETE SET NULL, -- NULL = admin broadcast
+  method          text NOT NULL CHECK (method IN ('page', 'repage', 'critical', 'ack')),
+  action_taken    text,
+  notified_at     timestamptz NOT NULL DEFAULT now(),
+  acknowledged_at timestamptz
+);
+CREATE INDEX alert_escalations_alert_idx ON alert_escalations (alert_id, tier);
+CREATE INDEX alert_escalations_notified_idx ON alert_escalations (notified_id);
+
+-- Dead-letter queue for failed LLM risk scans, retried by the escalation
+-- worker and surfaced by GET /api/health/safety — never silent.
+CREATE TABLE risk_scan_failures (
+  id          text PRIMARY KEY,
+  kind        text NOT NULL CHECK (kind IN ('chat', 'voice')),
+  message_id  text NOT NULL UNIQUE REFERENCES messages(id) ON DELETE CASCADE,
+  attempts    integer NOT NULL DEFAULT 1,
+  last_error  text,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  retried_at  timestamptz,
+  resolved_at timestamptz
+);
+CREATE INDEX risk_scan_failures_open_idx ON risk_scan_failures (created_at) WHERE resolved_at IS NULL;
 
 CREATE TABLE calls (
   id              text PRIMARY KEY,

@@ -13,6 +13,31 @@ app.use(express.json({ limit: '1mb' }));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, name: 'kalimni-api' }));
 
+// Safety-net health (Phase 1.2): which protective layers are actually alive.
+// No PHI — states and counts only, so operators can monitor it unauthenticated.
+app.get('/api/health/safety', async (_req, res) => {
+  const config = require('./src/config');
+  const risk = require('./src/services/riskService');
+  const transcription = require('./src/services/transcriptionService');
+  const escalation = require('./src/workers/escalation');
+  let openScanFailures = null;
+  let openAlerts = null;
+  try {
+    const repos = require('./src/data/repos');
+    openScanFailures = await repos.countOpenRiskScanFailures();
+    openAlerts = (await repos.openSafetyAlerts()).length;
+  } catch { /* db down — the nulls say so */ }
+  res.json({
+    keywordLayer: true,
+    llmLayer: !!config.aiApiKey,
+    transcriptionLayer: transcription.isConfigured(),
+    ...risk.healthSnapshot(),        // lastClassifiedAt / lastErrorAt / lastError
+    ...escalation.healthSnapshot(),  // lastSweepAt
+    openScanFailures,
+    openAlerts,
+  });
+});
+
 app.use('/api/auth', require('./src/routes/auth'));
 app.use('/api/users', require('./src/routes/users'));
 app.use('/api/questionnaires', require('./src/routes/questionnaires'));
@@ -48,6 +73,10 @@ async function main() {
     console.error('     2. create schema: npm run db:setup       (from api/)');
     process.exit(1);
   }
+
+  // Escalation ladder + risk-scan retries (Phase 1.1/1.2). Started only here,
+  // never from module load, so tests and scripts stay side-effect free.
+  require('./src/workers/escalation').start();
 
   server.listen(config.port, () => {
     console.log(`Kalimni API listening on port ${config.port}`);

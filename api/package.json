@@ -4,8 +4,10 @@
   "description": "Kalimni teletherapy platform API (Express + Socket.IO + PostgreSQL)",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "node scripts/preflight.js && node index.js",
     "dev": "nodemon index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "db:setup": "node scripts/setup-db.js",
     "db:migrate": "node scripts/migrate.js",
     "db:copy": "node scripts/copy-to-remote.js",
@@ -21,12 +23,15 @@
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.1.0",
+    "google-auth-library": "^11.0.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.2.0",
     "pg": "^8.13.1",
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
-    "nodemon": "^3.1.11"
+    "nodemon": "^3.1.11",
+    "supertest": "^7.2.2",
+    "vitest": "^4.1.10"
   }
 }

@@ -78,6 +78,14 @@ export function useRealtime() {
       }
     };
 
+    // Escalation ladder: an alert crossed 60 min unacknowledged (critical),
+    // or was acknowledged somewhere — refresh the banner + alert lists.
+    const onSafetyLadder = () => {
+      queryClient.invalidateQueries({ queryKey: ['criticalAlerts'] });
+      queryClient.invalidateQueries({ queryKey: ['safetyAlerts'] });
+      queryClient.invalidateQueries({ queryKey: ['adminStats'] });
+    };
+
     const onAccountStatus = () => {
       useAuth.getState().refreshMe().catch(() => {});
     };
@@ -105,6 +113,8 @@ export function useRealtime() {
     socket.on('matching:new', onMatching);
     socket.on('patients:update', onPatients);
     socket.on('safety:alert', onSafety);
+    socket.on('safety:critical', onSafetyLadder);
+    socket.on('safety:ack', onSafetyLadder);
     socket.on('account:status', onAccountStatus);
     socket.on('users:update', onUsers);
     socket.on('appointment:new', onAppointment);
@@ -119,6 +129,8 @@ export function useRealtime() {
       socket.off('matching:new', onMatching);
       socket.off('patients:update', onPatients);
       socket.off('safety:alert', onSafety);
+      socket.off('safety:critical', onSafetyLadder);
+      socket.off('safety:ack', onSafetyLadder);
       socket.off('account:status', onAccountStatus);
       socket.off('users:update', onUsers);
       socket.off('appointment:new', onAppointment);
