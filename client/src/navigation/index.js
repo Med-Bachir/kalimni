@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,6 +38,8 @@ import ProfileScreen from '../screens/patient/ProfileScreen';
 import PersonalDataScreen from '../screens/patient/PersonalDataScreen';
 import HistoryScreen from '../screens/patient/HistoryScreen';
 import PrivacyScreen from '../screens/patient/PrivacyScreen';
+import SafetyPlanScreen from '../screens/patient/SafetyPlanScreen';
+import { useSafetyPlan } from '../store/safetyPlan';
 import CrisisScreen from '../screens/shared/CrisisScreen';
 import CallScreen from '../screens/shared/CallScreen';
 import IncomingCallScreen from '../screens/shared/IncomingCallScreen';
@@ -139,6 +141,9 @@ export default function RootNavigator() {
   useRealtime();
   useCallSignaling();
   usePushNotifications();
+  // Device-local safety plan (Phase 2.1): loaded once, non-blocking — the
+  // crisis screen must never wait on anything.
+  useEffect(() => { useSafetyPlan.getState().hydrate(); }, []);
 
   if (!user) {
     return (
@@ -220,6 +225,9 @@ export default function RootNavigator() {
       <Stack.Screen name="PersonalData" component={PersonalDataScreen} />
       <Stack.Screen name="History" component={HistoryScreen} />
       <Stack.Screen name="Privacy" component={PrivacyScreen} />
+      {/* The safety plan is written calm and read in crisis — reachable from
+          the crisis screen, the profile, and a low check-in. */}
+      <Stack.Screen name="SafetyPlan" component={SafetyPlanScreen} />
       <Stack.Screen name="Crisis" component={CrisisScreen} options={{ presentation: 'modal' }} />
     </Stack.Navigator>
   );

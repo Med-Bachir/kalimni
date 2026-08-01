@@ -1,6 +1,8 @@
 const express = require('express');
 const repos = require('../data/repos');
 const { requireAuth } = require('../middleware/auth');
+const { validate } = require('../middleware/validate');
+const schemas = require('../schemas');
 const { emitToUser } = require('../realtime');
 const chat = require('../services/chatService');
 
@@ -28,8 +30,8 @@ router.get('/', async (req, res) => {
 // POST /api/appointments { conversationId, scheduledAt, durationMin?, mode?, note? }
 // Either participant proposes; the other confirms. Only one open slot per
 // conversation at a time.
-router.post('/', async (req, res) => {
-  const { conversationId, scheduledAt, durationMin, mode, note } = req.body || {};
+router.post('/', validate(schemas.appointmentCreate), async (req, res) => {
+  const { conversationId, scheduledAt, durationMin, mode, note } = req.body;
   const conv = await repos.findConversation(conversationId);
   if (!conv || !chat.isMember(conv, req.user.id)) {
     return res.status(404).json({ error: 'conversation_not_found' });
@@ -42,10 +44,6 @@ router.post('/', async (req, res) => {
   if (Number.isNaN(when.getTime())) return res.status(400).json({ error: 'scheduled_at_invalid' });
   if (when.getTime() < Date.now()) return res.status(400).json({ error: 'scheduled_at_past' });
   if (when.getTime() > Date.now() + MAX_HORIZON_MS) return res.status(400).json({ error: 'scheduled_at_too_far' });
-  if (mode && !['call', 'chat'].includes(mode)) return res.status(400).json({ error: 'mode_invalid' });
-  if (durationMin !== undefined && (!Number.isInteger(durationMin) || durationMin < 10 || durationMin > 180)) {
-    return res.status(400).json({ error: 'duration_invalid' });
-  }
   if (await repos.hasOpenAppointment(conversationId)) {
     return res.status(409).json({ error: 'appointment_exists' });
   }
@@ -67,7 +65,7 @@ router.post('/', async (req, res) => {
 
 // POST /api/appointments/:id/respond { action: 'confirm' | 'decline' }
 // Only the invitee (the party who did NOT propose) may respond, while proposed.
-router.post('/:id/respond', async (req, res) => {
+router.post('/:id/respond', validate(schemas.appointmentRespond), async (req, res) => {
   const appointment = await repos.findAppointment(req.params.id);
   if (!appointment) return res.status(404).json({ error: 'appointment_not_found' });
   const isMember = appointment.patientId === req.user.id || appointment.specialistId === req.user.id;
@@ -75,9 +73,7 @@ router.post('/:id/respond', async (req, res) => {
   if (appointment.proposedBy === req.user.id) return res.status(403).json({ error: 'proposer_cannot_respond' });
   if (appointment.status !== 'proposed') return res.status(409).json({ error: 'not_proposed' });
 
-  const { action } = req.body || {};
-  if (!['confirm', 'decline'].includes(action)) return res.status(400).json({ error: 'action_invalid' });
-
+  const { action } = req.body;
   const updated = await repos.updateAppointment(appointment.id, {
     status: action === 'confirm' ? 'confirmed' : 'declined',
     decidedAt: new Date().toISOString(),

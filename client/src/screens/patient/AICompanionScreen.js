@@ -308,10 +308,16 @@ export default function AICompanionScreen({ navigation }) {
             {crisisHold && (
               <View style={{
                 margin: 12, marginBottom: 0, backgroundColor: colors.warnBg, borderRadius: 12,
-                padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8,
+                padding: 12, gap: 8,
               }}>
-                <Ionicons name="pause-circle-outline" size={18} color={colors.warn} />
-                <T size={12.5} color={colors.warn} style={{ flex: 1, lineHeight: 19 }}>{t('companion.crisisHold')}</T>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="pause-circle-outline" size={18} color={colors.warn} />
+                  <T size={12.5} color={colors.warn} style={{ flex: 1, lineHeight: 19 }}>{t('companion.crisisHold')}</T>
+                </View>
+                {/* The crisis screen leads with the patient's own safety plan. */}
+                <TouchableOpacity onPress={() => navigation.navigate('Crisis')}>
+                  <T w="600" size={13} color={colors.warn}>{t('companion.holdPlanCta')}</T>
+                </TouchableOpacity>
               </View>
             )}
 

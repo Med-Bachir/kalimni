@@ -50,6 +50,10 @@ module.exports = {
   mockGoogleAuth,
   // OAuth client id the Google ID tokens must be minted for (audience check).
   googleClientId: process.env.GOOGLE_CLIENT_ID || '',
+  // Browser origins allowed by CORS (HTTP + Socket.IO). Comma-separated.
+  // Empty = permissive — fine for the native app (no Origin header), warned
+  // about in production by preflight.
+  corsOrigins: (process.env.CORS_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean),
   agoraAppId: process.env.AGORA_APP_ID || '',
   agoraAppCertificate: process.env.AGORA_APP_CERTIFICATE || '',
   databaseUrl: process.env.DATABASE_URL,

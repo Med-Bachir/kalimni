@@ -64,8 +64,15 @@ async function main() {
   const falseAlarms = nones.filter((r) => r.got === 'high');
   const exact = results.filter((r) => r.got === r.expected);
 
+  // The merge gate (Phase 3.4.1). Recall on expected-high is the number that
+  // matters: a false positive costs thirty seconds of annoyance, a false
+  // negative costs something that cannot be gotten back. Errors on high cases
+  // count as misses (an unevaluated crisis message is not a caught one).
+  const MIN_HIGH_RECALL = Number(process.env.EVAL_MIN_HIGH_RECALL) || 0.98;
+  const recall = highs.length ? caught.length / highs.length : 1;
+
   console.log('\n================ RESULTS ================');
-  console.log(`HIGH RECALL : ${caught.length}/${highs.length} (${((caught.length / highs.length) * 100).toFixed(1)}%)  <- must be >= 95%`);
+  console.log(`HIGH RECALL : ${caught.length}/${highs.length} (${(recall * 100).toFixed(1)}%)  <- gate: >= ${(MIN_HIGH_RECALL * 100).toFixed(0)}%`);
   console.log(`FALSE ALARMS: ${falseAlarms.length}/${nones.length} (${((falseAlarms.length / nones.length) * 100).toFixed(1)}%)`);
   console.log(`EXACT MATCH : ${exact.length}/${results.length} (${((exact.length / results.length) * 100).toFixed(1)}%)`);
   if (errors.length) console.log(`ERRORS      : ${errors.length} (rate limit? check AI_API_KEY / EVAL_DELAY_MS)`);
@@ -79,6 +86,16 @@ async function main() {
     console.log('\nFALSE ALARMS (annoying — tune if frequent):');
     falseAlarms.forEach((r) => console.log(`  ${r.text}  (${r.note})`));
   }
+
+  if (errors.length > results.length * 0.2) {
+    console.error(`\nFAIL: ${errors.length}/${results.length} cases errored — eval inconclusive (provider down or rate-limited).`);
+    process.exit(2);
+  }
+  if (recall < MIN_HIGH_RECALL) {
+    console.error(`\nFAIL: high recall ${(recall * 100).toFixed(1)}% is below the ${(MIN_HIGH_RECALL * 100).toFixed(0)}% gate. Do not ship this classifier.`);
+    process.exit(1);
+  }
+  console.log('\nPASS: high recall meets the gate.');
   process.exit(0);
 }
 

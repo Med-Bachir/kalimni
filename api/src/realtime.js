@@ -10,7 +10,10 @@ const onlineUserIds = new Set();
 
 function initRealtime(server) {
   const { Server } = require('socket.io');
-  io = new Server(server, { cors: { origin: '*' } });
+  const config = require('./config');
+  io = new Server(server, {
+    cors: { origin: config.corsOrigins.length ? config.corsOrigins : '*' },
+  });
 
   io.use(async (socket, next) => {
     try {

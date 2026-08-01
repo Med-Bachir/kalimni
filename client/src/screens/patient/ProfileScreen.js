@@ -202,6 +202,7 @@ export default function ProfileScreen({ navigation }) {
             right={<T w="600" size={13.5} color={colors.muted}>{lang === 'ar' ? t('profile.arabic') : t('profile.french')}</T>}
           />
           <MenuRow icon="lock-closed-outline" label={t('profile.privacy')} onPress={() => navigation.navigate('Privacy')} />
+          <MenuRow icon="map-outline" label={t('profile.safetyPlan')} onPress={() => navigation.navigate('SafetyPlan')} />
           <MenuRow icon="call-outline" label={t('profile.emergency')} onPress={() => navigation.navigate('Crisis')} last />
         </Card>
 

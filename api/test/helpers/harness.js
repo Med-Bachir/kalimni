@@ -73,7 +73,8 @@ function makeFakeRepos() {
     pushTokens: new Map(),     // token -> {token, userId, platform}
     rota: new Map(),           // id -> {id, specialistId, tier, startsAt, endsAt}
     escalations: [],           // append-only page audit rows
-    riskFailures: new Map(),   // messageId -> failure row
+    riskFailures: new Map(),   // messageId|journalEntryId -> failure row
+    journal: new Map(),        // id -> journal entry
   };
 
   const impl = {
@@ -86,8 +87,56 @@ function makeFakeRepos() {
       state.users.set(user.id, user);
       return user;
     },
+    // Mirrors repos.updateUser: only whitelisted props are applied, and the
+    // stored object is mutated so tests can assert on their seeded reference.
+    updateUser: async (id, patch) => {
+      const allowed = [
+        'name', 'language', 'settings', 'assignedSpecialistId', 'intakeCompletedAt',
+        'intakeSkipped', 'title', 'status', 'specialties', 'license', 'bio',
+      ];
+      const user = state.users.get(id);
+      if (!user) return null;
+      for (const key of allowed) {
+        if (patch[key] !== undefined) user[key] = patch[key];
+      }
+      return user;
+    },
+    listUsers: async (role) =>
+      [...state.users.values()].filter((u) => !role || u.role === role),
     listAdminIds: async () =>
       [...state.users.values()].filter((u) => u.role === 'admin').map((u) => u.id),
+    listPatientsOf: async (specialistId) =>
+      [...state.users.values()].filter((u) => u.role === 'patient' && u.assignedSpecialistId === specialistId),
+    listUnassignedPatients: async () =>
+      [...state.users.values()].filter((u) => u.role === 'patient' && !u.assignedSpecialistId),
+    listPendingSpecialists: async () =>
+      [...state.users.values()].filter((u) => u.role === 'specialist' && u.status === 'pending'),
+    adminStats: async () => ({
+      patients: [...state.users.values()].filter((u) => u.role === 'patient').length,
+      patientsThisWeek: 0,
+      unassignedPatients: 0,
+      specialists: [...state.users.values()].filter((u) => u.role === 'specialist').length,
+      pendingSpecialists: 0,
+      activeRequests: 0,
+      newRequestsToday: 0,
+      openSafetyAlerts: [...state.alerts.values()].filter((a) => a.status === 'open').length,
+    }),
+
+    // questionnaire results
+    insertQuestionnaireResult: async (r) => ({ id: uid('qr'), createdAt: new Date().toISOString(), ...r }),
+    resultsOf: async () => [],
+    latestResultOf: async () => null,
+    latestResultsByQuestionnaire: async () => [],
+    // matching requests
+    hasOpenMatchingRequest: async () => true, // suppress queue side-effects in tests
+    insertMatchingRequest: async (r) => ({ id: uid('mr'), ...r }),
+    latestAcceptedRequestOf: async () => null,
+    // appointments
+    nextAppointmentForConversation: async () => null,
+    hasOpenAppointment: async () => false,
+    insertAppointment: async (a) => ({ id: uid('apt'), status: 'proposed', ...a }),
+    findAppointment: async () => null,
+    updateAppointment: async () => null,
 
     // content (companion suggestions) — empty library by default
     listContent: async () => [],
@@ -219,9 +268,38 @@ function makeFakeRepos() {
       const row = [...state.riskFailures.values()].find((f) => f.id === id);
       if (row) row.resolvedAt = new Date().toISOString();
     },
+    upsertJournalScanFailure: async ({ journalEntryId, error }) => {
+      const existing = state.riskFailures.get(journalEntryId);
+      if (existing) {
+        existing.attempts += 1;
+        existing.lastError = error;
+        existing.retriedAt = new Date().toISOString();
+        return existing;
+      }
+      const row = {
+        id: uid('rsf'), kind: 'journal', messageId: null, journalEntryId,
+        attempts: 1, lastError: error,
+        createdAt: new Date().toISOString(), retriedAt: null, resolvedAt: null,
+      };
+      state.riskFailures.set(journalEntryId, row);
+      return row;
+    },
     countOpenRiskScanFailures: async () =>
       [...state.riskFailures.values()].filter((f) => !f.resolvedAt).length,
     getVoiceTranscript: async (messageId) => state.transcripts.get(messageId) || null,
+
+    // journal / daily check-in
+    insertJournalEntry: async (e) => {
+      const entry = { id: uid('je'), note: null, createdAt: new Date().toISOString(), ...e };
+      state.journal.set(entry.id, entry);
+      return entry;
+    },
+    findJournalEntry: async (id) => state.journal.get(id) || null,
+    journalEntriesOf: async (userId, limit = 30) =>
+      [...state.journal.values()].filter((e) => e.userId === userId).slice(-limit).reverse(),
+    journalEntryCountOf: async (userId) => ({
+      total: [...state.journal.values()].filter((e) => e.userId === userId).length,
+    }),
 
     // AI companion
     getOrCreateAiConversation: async (patientId) => {

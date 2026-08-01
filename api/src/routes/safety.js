@@ -2,6 +2,8 @@ const express = require('express');
 const repos = require('../data/repos');
 const { userCard, publicUser } = require('../utils/serialize');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { validate } = require('../middleware/validate');
+const schemas = require('../schemas');
 const { CRISIS_RESOURCES } = require('../utils/safety');
 const { onlineUserIds, emitToUser, emitToAdmins } = require('../realtime');
 
@@ -57,7 +59,7 @@ router.get('/alerts/critical', requireRole('admin'), async (_req, res) => {
 // they actually did (called the patient, escalated to emergency services...)
 // and that text is stored in the append-only escalation audit. Allowed for
 // admins, the treating specialist, and anyone the ladder paged (on-call).
-router.post('/alerts/:id/ack', async (req, res) => {
+router.post('/alerts/:id/ack', validate(schemas.alertAck), async (req, res) => {
   const alert = await repos.findSafetyAlert(req.params.id);
   if (!alert) return res.status(404).json({ error: 'alert_not_found' });
 
@@ -68,10 +70,10 @@ router.post('/alerts/:id/ack', async (req, res) => {
   if (!allowed) return res.status(403).json({ error: 'forbidden' });
   if (alert.status === 'acknowledged') return res.status(409).json({ error: 'already_acknowledged' });
 
-  const actionTaken = String((req.body || {}).actionTaken || '').trim();
-  if (actionTaken.length < 5) {
-    return res.status(400).json({ error: 'action_taken_required' });
-  }
+  // Clinical rule, not a shape rule: an ack without a recorded intervention
+  // is a UI dismissal, which is exactly what this endpoint refuses to be.
+  const actionTaken = String(req.body.actionTaken || '').trim();
+  if (actionTaken.length < 5) return res.status(400).json({ error: 'action_taken_required' });
 
   const now = new Date().toISOString();
   const updated = await repos.updateSafetyAlert(alert.id, {
@@ -113,13 +115,12 @@ router.get('/rota', requireRole('admin'), async (_req, res) => {
   });
 });
 
-router.post('/rota', requireRole('admin'), async (req, res) => {
-  const { specialistId, tier = 1, startsAt, endsAt } = req.body || {};
-  const specialist = specialistId ? await repos.findUserById(specialistId) : null;
+router.post('/rota', requireRole('admin'), validate(schemas.rotaCreate), async (req, res) => {
+  const { specialistId, tier, startsAt, endsAt } = req.body;
+  const specialist = await repos.findUserById(specialistId);
   if (!specialist || specialist.role !== 'specialist' || specialist.status !== 'approved') {
     return res.status(400).json({ error: 'specialist_invalid' });
   }
-  if (![1, 2].includes(tier)) return res.status(400).json({ error: 'tier_invalid' });
   const starts = new Date(startsAt);
   const ends = new Date(endsAt);
   if (Number.isNaN(starts.getTime()) || Number.isNaN(ends.getTime()) || ends <= starts) {

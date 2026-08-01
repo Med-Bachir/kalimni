@@ -13,11 +13,13 @@ const path = require('path');
 const express = require('express');
 const repos = require('../data/repos');
 const { requireAuth } = require('../middleware/auth');
+const rateLimits = require('../middleware/rateLimits');
 const { verifyToken, signMediaUrl, verifyMediaSig } = require('../utils/tokens');
 const { voiceFilePath } = require('../utils/mediaStore');
 const chat = require('../services/chatService');
 
 const router = express.Router();
+router.use(rateLimits.media);
 
 // Canonical filename (basename() is the path-traversal guard, same as
 // mediaStore) -> the message that owns it, or null (unknown file) or false

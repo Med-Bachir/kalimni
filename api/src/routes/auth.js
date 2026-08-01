@@ -5,28 +5,29 @@ const repos = require('../data/repos');
 const { signToken } = require('../utils/tokens');
 const { publicUser } = require('../utils/serialize');
 const { requireAuth } = require('../middleware/auth');
+const rateLimits = require('../middleware/rateLimits');
+const { validate } = require('../middleware/validate');
+const schemas = require('../schemas');
 const { emitToAdmins } = require('../realtime');
 const config = require('../config');
 
 const router = express.Router();
 
 // POST /api/auth/register { name, email, password, role: 'patient'|'specialist', language? }
-router.post('/register', async (req, res) => {
-  const { name, email, password, role = 'patient', language = 'ar' } = req.body || {};
-  if (!name || !String(name).trim()) return res.status(400).json({ error: 'name_required' });
-  if (!email || !/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: 'email_invalid' });
-  if (!password || String(password).length < 8) return res.status(400).json({ error: 'password_too_short' });
-  if (!['patient', 'specialist'].includes(role)) return res.status(400).json({ error: 'role_invalid' });
+router.post('/register', rateLimits.auth, validate(schemas.register), async (req, res) => {
+  const { name, email, password, role, language } = req.body;
   if (await repos.findUserByEmail(email)) return res.status(409).json({ error: 'email_taken' });
 
   let user;
   try {
     user = await repos.insertUser({
       role,
-      name: String(name).trim(),
-      email: String(email).toLowerCase(),
-      passwordHash: bcrypt.hashSync(password, 8),
-      language: ['ar', 'fr'].includes(language) ? language : 'ar',
+      name,
+      email,
+      // Cost 12, async — hashSync at cost 8 both blocked the event loop and
+      // was cheap to crack offline (Phase 3.2).
+      passwordHash: await bcrypt.hash(password, 12),
+      language,
       ...(role === 'patient'
         ? { assignedSpecialistId: null, intakeCompletedAt: null, intakeSkipped: false }
         : { title: null, status: 'pending', specialties: [], bio: null, license: null }),
@@ -44,10 +45,10 @@ router.post('/register', async (req, res) => {
 });
 
 // POST /api/auth/login { email, password }
-router.post('/login', async (req, res) => {
-  const { email, password } = req.body || {};
+router.post('/login', rateLimits.auth, validate(schemas.login), async (req, res) => {
+  const { email, password } = req.body;
   const user = email ? await repos.findUserByEmail(email) : null;
-  if (!user || !bcrypt.compareSync(String(password || ''), user.passwordHash)) {
+  if (!user || !(await bcrypt.compare(String(password || ''), user.passwordHash))) {
     return res.status(401).json({ error: 'invalid_credentials' });
   }
   res.json({ token: signToken(user), user: publicUser(user) });
@@ -59,16 +60,16 @@ router.post('/login', async (req, res) => {
 // dev-only: config.js throws at boot if it is enabled in production.
 const googleClient = config.googleClientId ? new OAuth2Client(config.googleClientId) : null;
 
-router.post('/google', async (req, res) => {
+router.post('/google', rateLimits.auth, validate(schemas.google), async (req, res) => {
   let email;
   let name;
 
   if (config.mockGoogleAuth) {
-    ({ email, name } = req.body || {});
+    ({ email, name } = req.body);
     if (!email || !/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: 'email_invalid' });
   } else {
     if (!googleClient) return res.status(501).json({ error: 'google_auth_not_configured' });
-    const idToken = (req.body || {}).idToken;
+    const { idToken } = req.body;
     if (!idToken || typeof idToken !== 'string') return res.status(401).json({ error: 'google_token_invalid' });
     let payload;
     try {

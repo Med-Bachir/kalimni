@@ -37,6 +37,9 @@ if (!config.mockGoogleAuth && !config.googleClientId) {
 if (!config.agoraAppId) {
   warnings.push('AGORA_APP_ID is empty — voice/video calls are disabled (signaling still works).');
 }
+if (process.env.NODE_ENV === 'production' && !config.corsOrigins.length) {
+  warnings.push('CORS_ORIGINS is empty — any browser origin can call the API (native apps unaffected).');
+}
 
 warnings.forEach((w) => console.warn(`[preflight] WARN: ${w}`));
 console.log(`[preflight] environment OK${warnings.length ? ` (${warnings.length} warning${warnings.length > 1 ? 's' : ''})` : ''}`);

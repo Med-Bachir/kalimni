@@ -1,0 +1,60 @@
+# CI (Phase 3.4.1). Two gates on every push/PR:
+#
+#   test       — the API unit/route suite (no database or network needed:
+#                the harness fakes the data layer).
+#   eval-risk  — the risk classifier against the labeled eval set. HIGH
+#                RECALL >= 98% is the merge gate: a false positive costs
+#                thirty seconds of annoyance, a false negative costs a
+#                patient in danger with no alert. Runs only when the
+#                AI_API_KEY secret is configured; skipping is reported
+#                loudly, never silently.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run: { working-directory: api }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+      - run: npm ci
+      - run: npm test
+
+  eval-risk:
+    runs-on: ubuntu-latest
+    defaults:
+      run: { working-directory: api }
+    env:
+      AI_API_KEY: ${{ secrets.AI_API_KEY }}
+      AI_BASE_URL: ${{ vars.AI_BASE_URL || 'https://api.groq.com/openai/v1' }}
+      AI_MODEL: ${{ vars.AI_MODEL || 'llama-3.3-70b-versatile' }}
+      # config.js fail-closed boot needs these; the eval never touches the DB.
+      JWT_SECRET: ci-only-secret-ci-only-secret-ci-only-secret
+      DATABASE_URL: postgres://unused:unused@localhost:1/unused
+      EVAL_DELAY_MS: ${{ vars.EVAL_DELAY_MS || '2500' }}
+      EVAL_MIN_HIGH_RECALL: '0.98'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+      - run: npm ci
+      - name: eval risk classifier (merge gate)
+        run: |
+          if [ -z "$AI_API_KEY" ]; then
+            echo "::warning title=risk eval SKIPPED::AI_API_KEY secret is not configured — the classifier merge gate did NOT run. Add the secret to enforce it."
+            exit 0
+          fi
+          npm run eval:risk

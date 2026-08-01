@@ -1,6 +1,8 @@
 const express = require('express');
 const repos = require('../data/repos');
 const { requireAuth } = require('../middleware/auth');
+const { validate } = require('../middleware/validate');
+const schemas = require('../schemas');
 const { emitToUser, onlineUserIds } = require('../realtime');
 const { userCard } = require('../utils/serialize');
 const chat = require('../services/chatService');
@@ -30,9 +32,9 @@ const agoraPayload = (rtcUid, channel) => {
 };
 
 // POST /api/calls/invite { conversationId, media?: 'voice'|'video' }
-router.post('/invite', async (req, res) => {
-  const { conversationId } = req.body || {};
-  const media = req.body?.media === 'video' ? 'video' : 'voice';
+router.post('/invite', validate(schemas.callInvite), async (req, res) => {
+  const { conversationId } = req.body;
+  const media = req.body.media === 'video' ? 'video' : 'voice';
   const conv = conversationId ? await chat.findConversation(conversationId) : null;
   if (!conv || !chat.isMember(conv, req.user.id)) {
     return res.status(404).json({ error: 'conversation_not_found' });

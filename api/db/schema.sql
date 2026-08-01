@@ -131,7 +131,7 @@ CREATE TABLE safety_alerts (
   specialist_id   text REFERENCES users(id) ON DELETE SET NULL,
   message_id      text REFERENCES messages(id) ON DELETE SET NULL,
   result_id       text REFERENCES questionnaire_results(id) ON DELETE SET NULL,
-  source          text NOT NULL CHECK (source IN ('chat', 'questionnaire', 'ai_chat')),
+  source          text NOT NULL CHECK (source IN ('chat', 'questionnaire', 'ai_chat', 'journal')),
   detail          jsonb,                        -- ai_chat: { risk, trigger, aiConversationId }
   status          text NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'acknowledged')),
   acknowledged_by text,
@@ -173,19 +173,8 @@ CREATE TABLE alert_escalations (
 CREATE INDEX alert_escalations_alert_idx ON alert_escalations (alert_id, tier);
 CREATE INDEX alert_escalations_notified_idx ON alert_escalations (notified_id);
 
--- Dead-letter queue for failed LLM risk scans, retried by the escalation
--- worker and surfaced by GET /api/health/safety — never silent.
-CREATE TABLE risk_scan_failures (
-  id          text PRIMARY KEY,
-  kind        text NOT NULL CHECK (kind IN ('chat', 'voice')),
-  message_id  text NOT NULL UNIQUE REFERENCES messages(id) ON DELETE CASCADE,
-  attempts    integer NOT NULL DEFAULT 1,
-  last_error  text,
-  created_at  timestamptz NOT NULL DEFAULT now(),
-  retried_at  timestamptz,
-  resolved_at timestamptz
-);
-CREATE INDEX risk_scan_failures_open_idx ON risk_scan_failures (created_at) WHERE resolved_at IS NULL;
+-- (risk_scan_failures is created further down — it references journal_entries,
+-- which does not exist yet at this point in the file.)
 
 CREATE TABLE calls (
   id              text PRIMARY KEY,
@@ -287,6 +276,24 @@ CREATE TABLE journal_entries (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX journal_entries_user_idx ON journal_entries (user_id, created_at DESC);
+
+-- Dead-letter queue for failed LLM risk scans, retried by the escalation
+-- worker and surfaced by GET /api/health/safety — never silent. References
+-- either a chat/voice message or a journal entry (exactly one). Kept in sync
+-- with db/migrations/003 + 004 for live DBs.
+CREATE TABLE risk_scan_failures (
+  id               text PRIMARY KEY,
+  kind             text NOT NULL CHECK (kind IN ('chat', 'voice', 'journal')),
+  message_id       text UNIQUE REFERENCES messages(id) ON DELETE CASCADE,
+  journal_entry_id text UNIQUE REFERENCES journal_entries(id) ON DELETE CASCADE,
+  attempts         integer NOT NULL DEFAULT 1,
+  last_error       text,
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  retried_at       timestamptz,
+  resolved_at      timestamptz,
+  CHECK ((message_id IS NULL) <> (journal_entry_id IS NULL))
+);
+CREATE INDEX risk_scan_failures_open_idx ON risk_scan_failures (created_at) WHERE resolved_at IS NULL;
 
 -- RAG index over the content library. multilingual-e5-small embeddings
 -- (384-dim), one row per ~500-char chunk per language. Exact cosine search —

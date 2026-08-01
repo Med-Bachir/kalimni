@@ -121,6 +121,22 @@ export default function DailyCheckin() {
             {result ? (
               // Post-save: supportive line + optional exercise suggestion.
               <View style={{ flex: 1, justifyContent: 'center', gap: 16 }}>
+                {/* A low check-in surfaces the patient's OWN safety plan
+                    above everything else (Phase 2.1) — the plan they wrote
+                    while calm, offered gently. Never framed as an alarm. */}
+                {result.safetyPlanSuggested && (
+                  <Card
+                    onPress={() => { close(); navigation.navigate('SafetyPlan'); }}
+                    style={{ padding: 16, gap: 8, borderColor: colors.primary, borderWidth: 1.5 }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+                      <Ionicons name="map-outline" size={19} color={colors.primary} />
+                      <T w="700" size={14.5}>{t('safetyPlan.checkinCardTitle')}</T>
+                    </View>
+                    <T size={13} color={colors.body} style={{ lineHeight: 21 }}>{t('safetyPlan.checkinCardBody')}</T>
+                    <T w="600" size={13.5} color={colors.primary}>{t('safetyPlan.checkinCardOpen')}</T>
+                  </Card>
+                )}
                 <View style={{ alignItems: 'center', gap: 12 }}>
                   <Ionicons name="checkmark-circle" size={52} color={colors.success} />
                   <T w="700" size={17}>{t('companion.checkinThanks')}</T>

@@ -2,6 +2,8 @@ const express = require('express');
 const repos = require('../data/repos');
 const { QUESTIONNAIRES, getQuestionnaire, scoreQuestionnaire } = require('../data/questionnaires');
 const { requireAuth } = require('../middleware/auth');
+const { validate } = require('../middleware/validate');
+const schemas = require('../schemas');
 const { emitToAdmins } = require('../realtime');
 const alerts = require('../services/alertService');
 
@@ -14,12 +16,12 @@ router.get('/', (_req, res) => {
 });
 
 // POST /api/questionnaires/:id/submit { answers: number[] }
-router.post('/:id/submit', async (req, res) => {
+router.post('/:id/submit', validate(schemas.questionnaireSubmit), async (req, res) => {
   if (req.user.role !== 'patient') return res.status(403).json({ error: 'forbidden' });
   const questionnaire = getQuestionnaire(req.params.id);
   if (!questionnaire) return res.status(404).json({ error: 'questionnaire_not_found' });
 
-  const scored = scoreQuestionnaire(questionnaire, (req.body || {}).answers);
+  const scored = scoreQuestionnaire(questionnaire, req.body.answers);
   if (!scored) return res.status(400).json({ error: 'answers_invalid' });
 
   const result = await repos.insertQuestionnaireResult({

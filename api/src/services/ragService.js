@@ -76,6 +76,15 @@ const deindexContent = (contentId) =>
 
 // --- retrieval -----------------------------------------------------------------
 
+// Relevance floors (Phase 2.6): below these, a chunk does not enter the
+// prompt at all. Without a floor, top-k ships the four LEAST irrelevant
+// chunks of the whole corpus on every message — maximizing the surface any
+// poisoned or off-topic corpus text gets. The two retrievers score on
+// different scales, so each has its own floor and results are tagged with
+// which retriever produced them (buildSuggestions thresholds per scale).
+const MIN_VECTOR_SCORE = 0.78; // cosine similarity (e5 clusters high)
+const MIN_KEYWORD_SCORE = 0.2; // fraction of query tokens present in chunk
+
 // Naive fallback when embeddings are unavailable: rank chunks by how many
 // query tokens they share (case-folded, 3+ chars).
 async function keywordRetrieve(query, lang, k) {
@@ -90,23 +99,26 @@ async function keywordRetrieve(query, lang, k) {
   return rows
     .map((r) => ({
       ...r,
+      retriever: 'keyword',
       score: tokens.filter((tok) => r.chunk.toLowerCase().includes(tok)).length / tokens.length,
     }))
-    .filter((r) => r.score > 0)
+    .filter((r) => r.score >= MIN_KEYWORD_SCORE)
     .sort((a, b) => b.score - a.score)
     .slice(0, k);
 }
 
 /**
  * Top-k published chunks most similar to the query, with their content refs:
- * [{ contentId, chunk, score, title, category, type }]
+ * [{ contentId, chunk, score, retriever, title, category, type }]
+ * Only chunks above the relevance floor are returned — an empty result is
+ * normal and means "the library has nothing on this".
  */
 async function retrieve(query, lang = 'ar', k = 4) {
   if (!LANGS.includes(lang)) lang = 'ar';
   try {
     if (embeddings.isBroken()) throw new Error('embeddings_unavailable');
     const vector = await embeddings.embedQuery(query);
-    return await all(
+    const rows = await all(
       `SELECT ce.content_id, ce.chunk, 1 - (ce.embedding <=> $1::vector) AS score,
               c.title, c.category, c.type
        FROM content_embeddings ce JOIN content c ON c.id = ce.content_id
@@ -115,6 +127,9 @@ async function retrieve(query, lang = 'ar', k = 4) {
        LIMIT $3`,
       [embeddings.toSql(vector), lang, k]
     );
+    return rows
+      .filter((r) => Number(r.score) >= MIN_VECTOR_SCORE)
+      .map((r) => ({ ...r, retriever: 'vector' }));
   } catch (err) {
     console.error('[rag] vector retrieve failed, keyword fallback:', err.message);
     return keywordRetrieve(query, lang, k);

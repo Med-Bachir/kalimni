@@ -451,7 +451,7 @@ const ackAlertEscalations = (alertId, at) =>
     [alertId, at || null]
   );
 
-// --- risk scan dead letters (Phase 1.2) ------------------------------------------
+// --- risk scan dead letters (Phase 1.2 / 1.4) ------------------------------------
 
 // One row per message; repeated failures bump attempts.
 const upsertRiskScanFailure = ({ kind, messageId, error }) =>
@@ -464,6 +464,19 @@ const upsertRiskScanFailure = ({ kind, messageId, error }) =>
        retried_at = now()
      RETURNING *`,
     [uid('rsf'), kind, messageId, String(error || '').slice(0, 500)]
+  );
+
+// Journal-note counterpart (one row per entry).
+const upsertJournalScanFailure = ({ journalEntryId, error }) =>
+  one(
+    `INSERT INTO risk_scan_failures (id, kind, journal_entry_id, last_error)
+     VALUES ($1, 'journal', $2, $3)
+     ON CONFLICT (journal_entry_id) DO UPDATE SET
+       attempts = risk_scan_failures.attempts + 1,
+       last_error = $3,
+       retried_at = now()
+     RETURNING *`,
+    [uid('rsf'), journalEntryId, String(error || '').slice(0, 500)]
   );
 
 const openRiskScanFailures = (limit = 10, maxAttempts = 5) =>
@@ -712,6 +725,8 @@ const insertJournalEntry = (e) =>
     [e.id || uid('je'), e.userId, e.mood, e.stress, e.energy, e.sleep, e.note || null]
   );
 
+const findJournalEntry = (id) => one('SELECT * FROM journal_entries WHERE id = $1', [id]);
+
 const journalEntriesOf = (userId, limit = 30) =>
   all(
     'SELECT * FROM journal_entries WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2',
@@ -782,7 +797,8 @@ module.exports = {
   insertOnCallRota, deleteOnCallRota, listOnCallRota, onCallSpecialistsAt,
   insertAlertEscalation, escalationsOf, wasNotifiedForAlert, ackAlertEscalations,
   // risk scan dead letters
-  upsertRiskScanFailure, openRiskScanFailures, resolveRiskScanFailure, countOpenRiskScanFailures,
+  upsertRiskScanFailure, upsertJournalScanFailure, openRiskScanFailures,
+  resolveRiskScanFailure, countOpenRiskScanFailures,
   // calls
   insertCall, findCall, findActiveCall, updateCall,
   // appointments
@@ -795,5 +811,5 @@ module.exports = {
   setAiConversationStatus, insertAiMessage, aiMessagesOf,
   getAiState, upsertAiState, bumpAiMessageCount, deleteAiThread, hasOpenAiAlert, hasOpenAiHoldAlert,
   // journal / daily check-in
-  insertJournalEntry, journalEntriesOf, journalEntryCountOf,
+  insertJournalEntry, findJournalEntry, journalEntriesOf, journalEntryCountOf,
 };

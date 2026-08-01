@@ -4,6 +4,9 @@ const multer = require('multer');
 const repos = require('../data/repos');
 const { userCard } = require('../utils/serialize');
 const { requireAuth } = require('../middleware/auth');
+const rateLimits = require('../middleware/rateLimits');
+const { validate } = require('../middleware/validate');
+const schemas = require('../schemas');
 const { onlineUserIds } = require('../realtime');
 const { VOICE_DIR, deleteVoiceFile } = require('../utils/mediaStore');
 const chat = require('../services/chatService');
@@ -82,7 +85,7 @@ router.get('/:id/messages', async (req, res) => {
 });
 
 // POST /api/conversations/:id/messages { text }
-router.post('/:id/messages', async (req, res) => {
+router.post('/:id/messages', rateLimits.messages, validate(schemas.message), async (req, res) => {
   const conv = await chat.findConversation(req.params.id);
   if (!conv || !chat.isMember(conv, req.user.id)) {
     return res.status(404).json({ error: 'conversation_not_found' });
@@ -90,9 +93,7 @@ router.post('/:id/messages', async (req, res) => {
   if (req.user.role === 'specialist' && req.user.status !== 'approved') {
     return res.status(403).json({ error: 'specialist_not_approved' });
   }
-  const text = String((req.body || {}).text || '').trim();
-  if (!text) return res.status(400).json({ error: 'text_required' });
-  if (text.length > 4000) return res.status(400).json({ error: 'text_too_long' });
+  const { text } = req.body;
 
   const message = await chat.sendMessage({ conversation: conv, sender: req.user, text });
   res.status(201).json({ message });
@@ -103,7 +104,7 @@ router.post('/:id/messages', async (req, res) => {
 // asynchronously (voiceScreeningService) — slower than the keyword scan on
 // text, which is why voice is unavailable while a safety alert is open: in
 // that window the monitored text pathway is the only one offered.
-router.post('/:id/voice', voiceUpload.single('audio'), async (req, res) => {
+router.post('/:id/voice', rateLimits.voice, voiceUpload.single('audio'), async (req, res) => {
   const cleanup = () => req.file && deleteVoiceFile(req.file.filename);
   const conv = await chat.findConversation(req.params.id);
   if (!conv || !chat.isMember(conv, req.user.id)) {

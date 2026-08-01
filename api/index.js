@@ -2,13 +2,23 @@ const http = require('http');
 const os = require('os');
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 
 const config = require('./src/config');
 const { pool } = require('./src/data/pg');
 const { initRealtime } = require('./src/realtime');
+const { requestLog } = require('./src/middleware/requestLog');
 
 const app = express();
-app.use(cors());
+// Behind Render's proxy: without this every client shares the proxy's IP and
+// one abuser exhausts the whole userbase's rate-limit buckets.
+app.set('trust proxy', 1);
+app.use(helmet());
+// Browsers only — native app requests carry no Origin. CORS_ORIGINS restricts
+// the future web clients; unset = permissive (dev / native-only deployments;
+// preflight warns in production).
+app.use(config.corsOrigins.length ? cors({ origin: config.corsOrigins }) : cors());
+app.use(requestLog);
 app.use(express.json({ limit: '1mb' }));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, name: 'kalimni-api' }));

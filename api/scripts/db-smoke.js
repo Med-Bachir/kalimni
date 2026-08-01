@@ -124,6 +124,24 @@ async function main() {
     await repos.updateSafetyAlert(legacy.id, { status: 'acknowledged' });
     await repos.updateSafetyAlert(noHold.id, { status: 'acknowledged' });
     await repos.deleteOnCallRota(rota.id);
+
+    // --- 1.4 journal scanning SQL -------------------------------------------
+    const entry = await repos.insertJournalEntry({
+      userId: victimId, mood: 2, stress: 3, energy: 2, sleep: 3, note: 'smoke journal note',
+    });
+    check('journal entry lookup', (await repos.findJournalEntry(entry.id))?.id === entry.id);
+    const journalAlert = await repos.insertSafetyAlert({
+      patientId: victimId, source: 'journal', status: 'open',
+      detail: { risk: 'high', journalEntryId: entry.id },
+    });
+    check('safety_alerts accepts source=journal', journalAlert.source === 'journal');
+    await repos.updateSafetyAlert(journalAlert.id, { status: 'acknowledged' });
+    const jf1 = await repos.upsertJournalScanFailure({ journalEntryId: entry.id, error: 'first' });
+    const jf2 = await repos.upsertJournalScanFailure({ journalEntryId: entry.id, error: 'second' });
+    check('journal dead-letter upsert bumps attempts', jf1.id === jf2.id && jf2.attempts === 2);
+    check('journal dead-letter listed as open',
+      (await repos.openRiskScanFailures(10, 5)).some((f) => f.id === jf1.id && f.kind === 'journal'));
+    await repos.resolveRiskScanFailure(jf1.id);
   } finally {
     await repos.deleteUserCascade(victimId).catch(() => {});
     await repos.deleteUserCascade(attackerId).catch(() => {});

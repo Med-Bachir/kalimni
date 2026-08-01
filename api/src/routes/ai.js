@@ -3,8 +3,12 @@
 const express = require('express');
 const repos = require('../data/repos');
 const companion = require('../services/companionService');
+const journalScreening = require('../services/journalScreeningService');
 const recommendations = require('../services/recommendationService');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const rateLimits = require('../middleware/rateLimits');
+const { validate } = require('../middleware/validate');
+const schemas = require('../schemas');
 const { CRISIS_RESOURCES } = require('../utils/safety');
 
 const router = express.Router();
@@ -13,28 +17,11 @@ router.use(requireAuth, requireRole('patient'));
 // Specialists can switch the companion off per patient (users.settings jsonb).
 const aiEnabled = (user) => user.settings?.aiCompanion !== false;
 
-// Tiny in-memory rate limit: LIMIT chat messages per WINDOW per user. Enough
-// against runaway clients/scripts on a single-node deployment; swap for a
-// store-backed limiter if the API is ever load-balanced.
-const WINDOW_MS = 5 * 60_000;
-const LIMIT = 20;
-const hits = new Map(); // userId -> number[] (timestamps)
-function rateLimit(req, res, next) {
-  const now = Date.now();
-  const list = (hits.get(req.user.id) || []).filter((t) => now - t < WINDOW_MS);
-  if (list.length >= LIMIT) {
-    return res.status(429).json({ error: 'ai_rate_limited' });
-  }
-  list.push(now);
-  hits.set(req.user.id, list);
-  next();
-}
-
-// POST /api/ai/chat { text }
-router.post('/chat', rateLimit, async (req, res) => {
+// POST /api/ai/chat { text } — rate limited per user (20 / 5 min); the old
+// hand-rolled Map limiter grew unbounded per process.
+router.post('/chat', rateLimits.aiChat, validate(schemas.aiChat), async (req, res) => {
   if (!aiEnabled(req.user)) return res.status(403).json({ error: 'ai_disabled' });
-  const text = String(req.body?.text || '').trim();
-  if (!text) return res.status(400).json({ error: 'text_required' });
+  const { text } = req.body;
 
   try {
     res.json(await companion.handleMessage(req.user, text));
@@ -80,16 +67,15 @@ router.delete('/history', async (req, res) => {
 });
 
 // POST /api/ai/checkin { mood, stress, energy, sleep, note? } — daily check-in.
-router.post('/checkin', async (req, res) => {
-  const { mood, stress, energy, sleep, note } = req.body || {};
-  const valid = (v) => Number.isInteger(v) && v >= 1 && v <= 5;
-  if (![mood, stress, energy, sleep].every(valid)) {
-    return res.status(400).json({ error: 'checkin_values_invalid' });
-  }
+router.post('/checkin', validate(schemas.checkin), async (req, res) => {
+  const { mood, stress, energy, sleep, note } = req.body;
   const entry = await repos.insertJournalEntry({
     userId: req.user.id, mood, stress, energy, sleep,
     note: note ? String(note).slice(0, 2000) : null,
   });
+  // Safety net over the note (Phase 1.4): the keyword layer completes before
+  // this response; the LLM layer continues in the background.
+  await journalScreening.screenJournalEntry({ entry, user: req.user });
   // Post-insert total, so the client can celebrate a milestone in the same
   // response rather than waiting for the list to refetch.
   const { total } = await repos.journalEntryCountOf(req.user.id);

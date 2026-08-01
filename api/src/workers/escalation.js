@@ -24,6 +24,7 @@ const { emitToUser, emitToAdmins } = require('../realtime');
 const push = require('./../services/pushService');
 const risk = require('../services/riskService');
 const voiceScreening = require('../services/voiceScreeningService');
+const journalScreening = require('../services/journalScreeningService');
 const { voiceFilePath } = require('../utils/mediaStore');
 
 const SWEEP_INTERVAL_MS = 60_000;
@@ -84,6 +85,16 @@ async function escalateAlert(alert, now) {
 }
 
 async function retryRiskScan(failure) {
+  if (failure.kind === 'journal') {
+    const entry = await repos.findJournalEntry(failure.journalEntryId);
+    const user = entry && (await repos.findUserById(entry.userId));
+    if (!entry || !user) return repos.resolveRiskScanFailure(failure.id); // entry/account gone
+    if (await journalScreening.classifyJournalAsync({ entry, user })) {
+      await repos.resolveRiskScanFailure(failure.id);
+    }
+    return undefined;
+  }
+
   const message = await repos.findMessage(failure.messageId);
   if (!message) return repos.resolveRiskScanFailure(failure.id); // message gone
   const conversation = await repos.findConversation(message.conversationId);
