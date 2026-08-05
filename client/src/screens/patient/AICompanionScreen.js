@@ -278,6 +278,16 @@ export default function AICompanionScreen({ navigation }) {
             <T w="700" size={16}>{t('companion.title')}</T>
             <T size={11.5} color={colors.faint} numberOfLines={1}>{t('companion.disclaimer')}</T>
           </View>
+          {/* What the companion remembers about you (Phase 2.4) — readable
+              and editable, next to the button that deletes the thread. Both
+              belong to the patient; neither should need hunting for. */}
+          <TouchableOpacity
+            onPress={() => navigation.navigate('CompanionMemory')}
+            style={{ padding: 6 }}
+            accessibilityLabel={t('memory.title')}
+          >
+            <Ionicons name="bookmark-outline" size={19} color={colors.faint} />
+          </TouchableOpacity>
           {messages.length > 0 && (
             <TouchableOpacity onPress={clearThread} style={{ padding: 6 }}>
               <Ionicons name="trash-outline" size={19} color={colors.faint} />

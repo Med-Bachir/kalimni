@@ -89,6 +89,18 @@ async function retryRiskScan(failure) {
     const entry = await repos.findJournalEntry(failure.journalEntryId);
     const user = entry && (await repos.findUserById(entry.userId));
     if (!entry || !user) return repos.resolveRiskScanFailure(failure.id); // entry/account gone
+
+    // An encrypted entry (Phase 2.5) has no plaintext to re-scan, and
+    // classifyJournalAsync would return true for it — "no note, nothing to
+    // do" — which would RESOLVE the dead letter and quietly relabel "never
+    // scanned" as "scanned and fine". That is precisely the silence the
+    // dead-letter table exists to prevent, so it is left open and keeps
+    // being counted.
+    if (journalScreening.isUnscannable(entry)) {
+      console.warn(`[escalation] journal dead letter ${failure.id}: ${journalScreening.UNSCANNABLE} — left open`);
+      return undefined;
+    }
+
     if (await journalScreening.classifyJournalAsync({ entry, user })) {
       await repos.resolveRiskScanFailure(failure.id);
     }

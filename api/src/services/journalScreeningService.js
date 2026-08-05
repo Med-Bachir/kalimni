@@ -18,6 +18,7 @@ const repos = require('../data/repos');
 const risk = require('./riskService');
 const alerts = require('./alertService');
 const { scanForRisk } = require('../utils/safety');
+const { verifyScanVerdict } = require('../utils/tokens');
 
 async function raiseJournalAlert(user, entry, detail) {
   return alerts.raiseAlert({
@@ -71,4 +72,84 @@ async function screenJournalEntry({ entry, user }) {
   classifyJournalAsync({ entry, user }); // fire-and-forget
 }
 
-module.exports = { screenJournalEntry, classifyJournalAsync };
+// --- encrypted entries (Phase 2.5) -------------------------------------------
+// Once the note is ciphertext the server cannot scan what it stores, so the
+// verdict has to travel WITH the entry. Both layers still run — they just run
+// somewhere else:
+//
+//   layer 1 (keyword)  — on the device, before encryption, against the pattern
+//                        list served by GET /api/safety/scan-patterns so the
+//                        two implementations cannot drift.
+//   layer 2 (LLM)      — POST /api/journal/scan, which classifies the text and
+//                        DISCARDS it. Plaintext still passes through the server
+//                        for that one call; it is never stored. The setup
+//                        screen says so in those words, because the alternative
+//                        is losing the stronger of the two layers, and Rule 1
+//                        says a privacy feature may not widen the safety gap.
+//
+// The verdict is HMAC-signed by that endpoint (utils/tokens), so a modified
+// client cannot assert "safe" — it can only omit the attestation, and an
+// omission lands in the dead-letter table and in /api/health/safety.
+
+const UNSCANNABLE = 'encrypted entry — no plaintext to re-scan';
+
+/**
+ * Awaited by the check-in route for a ciphertext entry.
+ * `scan` is the client's attestation: { keyword, verdict, textHash, exp, sig,
+ * patternsVersion }. Returns the attestation actually recorded.
+ */
+async function screenEncryptedEntry({ entry, user, scan }) {
+  const signedOk = scan && verifyScanVerdict(scan, user.id);
+
+  // No usable attestation. We do not know whether this entry was dangerous,
+  // and saying nothing would make that indistinguishable from "it was fine".
+  if (!signedOk) {
+    const reason = !scan ? 'missing' : 'signature_invalid';
+    const recorded = { status: 'unverified', reason, at: new Date().toISOString() };
+    await repos.setJournalScan(entry.id, recorded);
+    await repos
+      .upsertJournalScanFailure({ journalEntryId: entry.id, error: `attestation ${reason}` })
+      .catch((e) => console.error('[journal-screen] dead-letter write failed:', e.message));
+    console.warn(`[journal-screen] encrypted entry=${entry.id} arrived with attestation ${reason} — dead-lettered`);
+    return recorded;
+  }
+
+  const recorded = {
+    status: 'verified',
+    verdict: scan.verdict,
+    keyword: !!scan.keyword,
+    patternsVersion: scan.patternsVersion || null,
+    at: new Date().toISOString(),
+  };
+  await repos.setJournalScan(entry.id, recorded);
+
+  if (scan.verdict === 'high' || scan.keyword) {
+    // The specialist is paged exactly as they are for a plaintext note. What
+    // changes is HOW they read it: `crisisEnvelope` on the entry is the
+    // excerpt sealed to their public key, so an alert about a patient in
+    // danger still carries its text. When the patient has no specialist yet
+    // there is no key to seal to, and the alert goes out without one.
+    const alert = await alerts.raiseAlert({
+      patient: user,
+      source: 'journal',
+      detail: {
+        risk: 'high',
+        journalEntryId: entry.id,
+        encrypted: true,
+        classifier: scan.keyword ? 'keyword-device' : 'llm',
+        // No `trigger`: the server never held this text and is not about to
+        // start. The envelope is the read path.
+        crisisEnvelope: !!entry.crisisEnvelope,
+      },
+    });
+    console.log(`[journal-screen] encrypted HIGH entry=${entry.id} — alert ${alert.id} (envelope: ${!!entry.crisisEnvelope})`);
+  }
+  return recorded;
+}
+
+/** True when a dead letter points at an entry that can never be re-scanned. */
+const isUnscannable = (entry) => !!entry && !!entry.ciphertext;
+
+module.exports = {
+  screenJournalEntry, classifyJournalAsync, screenEncryptedEntry, isUnscannable, UNSCANNABLE,
+};

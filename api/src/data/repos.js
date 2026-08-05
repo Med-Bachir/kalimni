@@ -647,24 +647,31 @@ const getAiState = (conversationId) =>
   one('SELECT * FROM ai_state WHERE conversation_id = $1', [conversationId]);
 
 // Partial upsert: null/undefined fields keep their stored value.
+// `clearEmotion` is the one explicit exception — "forget everything" (Phase
+// 2.4) has to be able to null a column that COALESCE would otherwise keep.
 const upsertAiState = (
   conversationId,
-  { summary, topics, emotion, followUp, messagesSinceSummary } = {}
+  { summary, topics, emotion, followUp, messagesSinceSummary, forgotten, editedAt, clearEmotion } = {}
 ) =>
   one(
-    `INSERT INTO ai_state (conversation_id, summary, topics, emotion, follow_up, messages_since_summary)
-     VALUES ($1, COALESCE($2, ''), COALESCE($3::jsonb, '[]'::jsonb), $4, $5, COALESCE($6, 0))
+    `INSERT INTO ai_state (conversation_id, summary, topics, emotion, follow_up, messages_since_summary, forgotten, edited_at)
+     VALUES ($1, COALESCE($2, ''), COALESCE($3::jsonb, '[]'::jsonb),
+             CASE WHEN $9 THEN NULL ELSE $4 END, $5, COALESCE($6, 0),
+             COALESCE($7::jsonb, '[]'::jsonb), $8)
      ON CONFLICT (conversation_id) DO UPDATE SET
        summary                = COALESCE($2, ai_state.summary),
        topics                 = COALESCE($3::jsonb, ai_state.topics),
-       emotion                = COALESCE($4, ai_state.emotion),
+       emotion                = CASE WHEN $9 THEN NULL ELSE COALESCE($4, ai_state.emotion) END,
        follow_up              = COALESCE($5, ai_state.follow_up),
        messages_since_summary = COALESCE($6, ai_state.messages_since_summary),
+       forgotten              = COALESCE($7::jsonb, ai_state.forgotten),
+       edited_at              = COALESCE($8, ai_state.edited_at),
        updated_at             = now()
      RETURNING *`,
     [
       conversationId, summary ?? null, topics === undefined ? null : j(topics),
       emotion ?? null, followUp ?? null, messagesSinceSummary ?? null,
+      forgotten === undefined ? null : j(forgotten), editedAt ?? null, !!clearEmotion,
     ]
   );
 
@@ -718,11 +725,20 @@ const hasOpenAiHoldAlert = async (patientId) =>
 
 // --- journal / daily check-in --------------------------------------------------
 
+// A check-in carries a plaintext note, OR ciphertext the server cannot read
+// (Phase 2.5), OR neither. The column CHECK enforces the exclusivity; this
+// just passes both sets through.
 const insertJournalEntry = (e) =>
   one(
-    `INSERT INTO journal_entries (id, user_id, mood, stress, energy, sleep, note)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-    [e.id || uid('je'), e.userId, e.mood, e.stress, e.energy, e.sleep, e.note || null]
+    `INSERT INTO journal_entries
+       (id, user_id, mood, stress, energy, sleep, note, ciphertext, nonce, key_version, enc_alg, scan, crisis_envelope)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+    [
+      e.id || uid('je'), e.userId, e.mood, e.stress, e.energy, e.sleep, e.note || null,
+      e.ciphertext || null, e.nonce || null, e.keyVersion || null, e.encAlg || null,
+      e.scan === undefined ? null : j(e.scan),
+      e.crisisEnvelope === undefined ? null : j(e.crisisEnvelope),
+    ]
   );
 
 const findJournalEntry = (id) => one('SELECT * FROM journal_entries WHERE id = $1', [id]);
@@ -737,6 +753,127 @@ const journalEntriesOf = (userId, limit = 30) =>
 // never reset, so they can't be derived from a LIMITed page of rows.
 const journalEntryCountOf = (userId) =>
   one('SELECT count(*)::int AS total FROM journal_entries WHERE user_id = $1', [userId]);
+
+// --- encrypted journal (Phase 2.5) ----------------------------------------------
+
+// Locked entries the safety net never actually saw. There is no plaintext
+// left to retry, so this is not a work queue — it is the honest count,
+// reported by /api/health/safety so the number is somebody's problem rather
+// than nobody's.
+//
+// "Never saw" is BOTH a missing attestation and a present-but-unverified one
+// (missing signature, forged, expired). Counting only NULL made this read 0
+// while entries with scan = {"status":"unverified"} sat in the table — the
+// metric that exists to make a gap visible, quietly hiding it.
+const countUnscannedEncryptedEntries = async () =>
+  (await run(
+    `SELECT count(*)::int AS n FROM journal_entries
+     WHERE ciphertext IS NOT NULL
+       AND (scan IS NULL OR scan->>'status' IS DISTINCT FROM 'verified')`
+  )).rows[0].n;
+
+const setJournalScan = (id, scan) =>
+  one('UPDATE journal_entries SET scan = $2 WHERE id = $1 RETURNING *', [id, j(scan)]);
+
+// Per-entry share to ONE specialist. Re-sharing replaces the envelope rather
+// than stacking rows (the patient may re-key).
+const insertJournalShare = (s) =>
+  one(
+    `INSERT INTO journal_shares (id, entry_id, patient_id, specialist_id, envelope)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (entry_id, specialist_id) DO UPDATE SET envelope = $5, created_at = now()
+     RETURNING *`,
+    [s.id || uid('jsh'), s.entryId, s.patientId, s.specialistId, j(s.envelope)]
+  );
+
+const deleteJournalShare = (entryId, patientId, specialistId) =>
+  run('DELETE FROM journal_shares WHERE entry_id = $1 AND patient_id = $2 AND specialist_id = $3',
+    [entryId, patientId, specialistId]);
+
+const journalSharesOfPatient = (patientId) =>
+  all('SELECT * FROM journal_shares WHERE patient_id = $1', [patientId]);
+
+// What the specialist may open: only entries this patient sealed to THEM.
+const journalSharesFor = (patientId, specialistId) =>
+  all(
+    'SELECT * FROM journal_shares WHERE patient_id = $1 AND specialist_id = $2',
+    [patientId, specialistId]
+  );
+
+const getJournalRecovery = (userId) =>
+  one('SELECT * FROM journal_recovery WHERE user_id = $1', [userId]);
+
+const upsertJournalRecovery = (userId, { method, wrappedKey, keyVersion, publicKey }) =>
+  one(
+    `INSERT INTO journal_recovery (user_id, method, wrapped_key, key_version, public_key)
+     VALUES ($1, $2, $3, COALESCE($4, 1), $5)
+     ON CONFLICT (user_id) DO UPDATE SET
+       method = $2, wrapped_key = $3,
+       key_version = COALESCE($4, journal_recovery.key_version),
+       public_key = COALESCE($5, journal_recovery.public_key),
+       updated_at = now()
+     RETURNING *`,
+    [userId, method, wrappedKey || null, keyVersion || null, publicKey || null]
+  );
+
+// The specialist's published X25519 public key — public by definition; the
+// private half never leaves their device.
+const setUserPublicKey = (userId, publicKey) =>
+  one('UPDATE users SET public_key = $2 WHERE id = $1 RETURNING id, public_key', [userId, publicKey]);
+
+// --- session briefs (Phase 2.3) -------------------------------------------------
+
+// Alerts raised for one patient inside a window — the brief tells them what
+// their specialist can already see, so it needs the window, not the open count.
+const alertsOfPatientSince = (patientId, since) =>
+  all(
+    'SELECT * FROM safety_alerts WHERE patient_id = $1 AND created_at >= $2 ORDER BY created_at DESC',
+    [patientId, since]
+  );
+
+// The single open draft (see the partial unique index in migration 006).
+const openBriefDraftOf = (patientId) =>
+  one(`SELECT * FROM session_briefs WHERE patient_id = $1 AND status = 'draft'`, [patientId]);
+
+const insertSessionBrief = (b) =>
+  one(
+    `INSERT INTO session_briefs (id, patient_id, specialist_id, appointment_id, items)
+     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    [b.id || uid('sb'), b.patientId, b.specialistId, b.appointmentId || null, j(b.items || [])]
+  );
+
+const findSessionBrief = (id) => one('SELECT * FROM session_briefs WHERE id = $1', [id]);
+
+async function updateSessionBrief(id, patch) {
+  const map = {
+    items: 'items', status: 'status', appointmentId: 'appointment_id',
+    sharedAt: 'shared_at', takeaway: 'takeaway', takeawayAt: 'takeaway_at',
+  };
+  const { sets, values } = buildSet(patch, map, ['items']);
+  if (!sets.length) return findSessionBrief(id);
+  values.push(id);
+  return one(`UPDATE session_briefs SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`, values);
+}
+
+const deleteSessionBrief = (id) => run('DELETE FROM session_briefs WHERE id = $1', [id]);
+
+// The patient's own briefs, newest first (drafts included — it's their desk).
+const sessionBriefsOf = (patientId, limit = 20) =>
+  all(
+    'SELECT * FROM session_briefs WHERE patient_id = $1 ORDER BY created_at DESC LIMIT $2',
+    [patientId, limit]
+  );
+
+// What the specialist may read: SHARED briefs only, and only for their own
+// patient. The status predicate is here rather than in the route so no future
+// caller can accidentally hand a draft to a clinician.
+const sharedBriefsFor = (patientId, specialistId, limit = 20) =>
+  all(
+    `SELECT * FROM session_briefs
+     WHERE patient_id = $1 AND specialist_id = $2 AND status = 'shared'
+     ORDER BY shared_at DESC LIMIT $3`,
+    [patientId, specialistId, limit]
+  );
 
 // Register/refresh this device's token. The ON CONFLICT update touches only
 // rows the caller already owns: knowing a token string must never be enough to
@@ -812,4 +949,11 @@ module.exports = {
   getAiState, upsertAiState, bumpAiMessageCount, deleteAiThread, hasOpenAiAlert, hasOpenAiHoldAlert,
   // journal / daily check-in
   insertJournalEntry, findJournalEntry, journalEntriesOf, journalEntryCountOf,
+  // encrypted journal
+  countUnscannedEncryptedEntries, setJournalScan,
+  insertJournalShare, deleteJournalShare, journalSharesOfPatient, journalSharesFor,
+  getJournalRecovery, upsertJournalRecovery, setUserPublicKey,
+  // session briefs (Session Witness)
+  alertsOfPatientSince, openBriefDraftOf, insertSessionBrief, findSessionBrief,
+  updateSessionBrief, deleteSessionBrief, sessionBriefsOf, sharedBriefsFor,
 };

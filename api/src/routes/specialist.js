@@ -1,8 +1,9 @@
 const express = require('express');
 const repos = require('../data/repos');
-const { userCard } = require('../utils/serialize');
+const { userCard, clinicalJournalEntry } = require('../utils/serialize');
 const { requireAuth, requireApprovedSpecialist } = require('../middleware/auth');
 const { onlineUserIds } = require('../realtime');
+const mbc = require('../services/mbcService');
 
 const router = express.Router();
 router.use(requireAuth, requireApprovedSpecialist);
@@ -80,15 +81,55 @@ router.put('/patients/:id/ai', async (req, res) => {
 
 // GET /api/specialist/patients/:id/checkins — the patient's daily check-ins
 // (mood/stress/energy/sleep trends between sessions).
+// Journal notes are no longer visible here by default (Phase 2.5): once a
+// patient locks their journal, a note reaches this route only if they sealed
+// that entry to this clinician. The sliders are unaffected — they are the
+// measurement the treatment runs on, and locking them would cost the trend
+// for no privacy gain. Entries the specialist cannot read are returned
+// MARKED, not hidden.
 router.get('/patients/:id/checkins', async (req, res) => {
   const patient = await findAssignedPatient(req, res);
   if (!patient) return;
-  res.json({
+  const [entries, shares] = await Promise.all([
     // 60 to match the patient's own endpoint: the trend chart compares two
     // 14-day windows and a patient may log more than once a day.
-    entries: await repos.journalEntriesOf(patient.id, 60),
+    repos.journalEntriesOf(patient.id, 60),
+    repos.journalSharesFor(patient.id, req.user.id),
+  ]);
+  const envelopeByEntryId = new Map(shares.map((s) => [s.entryId, s.envelope]));
+  res.json({
+    entries: entries.map((e) => clinicalJournalEntry(e, envelopeByEntryId)),
     aiEnabled: patient.settings?.aiCompanion !== false,
   });
+});
+
+// GET /api/specialist/patients/:id/mbc — measurement-based care summary:
+// PHQ-9/GAD-7 trajectories with reliable-change indices, the non-response
+// flag, and the item-9 (self-harm) series.
+//
+// SPECIALIST-ONLY BY CONSTRUCTION (Phase 2.2). This router is behind
+// requireApprovedSpecialist and findAssignedPatient, and no patient-facing
+// route computes any of it: the moment a patient can see whether their
+// numbers "improved", the questionnaires stop being the truthful clinical
+// instrument the treatment depends on.
+router.get('/patients/:id/mbc', async (req, res) => {
+  const patient = await findAssignedPatient(req, res);
+  if (!patient) return;
+  res.json(await mbc.summaryFor(patient.id));
+});
+
+// GET /api/specialist/patients/:id/briefs — session briefs the patient CHOSE
+// to send (Phase 2.3), newest first.
+//
+// `repos.sharedBriefsFor` filters on status = 'shared' in the SQL, and a
+// shared brief no longer contains the items the patient unticked — they were
+// deleted at send time, not hidden behind this query. Both facts matter: what
+// a clinician sees here is exactly what their patient decided to say, and
+// there is no draft to leak and nothing withheld to discover.
+router.get('/patients/:id/briefs', async (req, res) => {
+  const patient = await findAssignedPatient(req, res);
+  if (!patient) return;
+  res.json({ briefs: await repos.sharedBriefsFor(patient.id, req.user.id, 20) });
 });
 
 module.exports = router;

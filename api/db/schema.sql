@@ -254,6 +254,14 @@ CREATE INDEX ai_messages_conversation_idx ON ai_messages (conversation_id, creat
 -- so the LLM never receives the full history.
 -- follow_up: short question re-opening the last conversation on the home
 -- screen. Kept in sync with db/migrations/001_ai_follow_up.sql for live DBs.
+--
+-- The summary is PATIENT-OWNED (Phase 2.4): written in their language, shown
+-- to them, and editable. edited_at marks a patient rewrite — the summariser
+-- is then told to preserve their wording. forgotten holds normalised token
+-- bags of lines they asked the companion to forget; every regenerated summary
+-- is filtered through them (services/memoryService.js), because a "forget"
+-- that the next refresh undoes is a lie. Kept in sync with
+-- db/migrations/005_patient_owned_memory.sql for live DBs.
 CREATE TABLE ai_state (
   conversation_id        text PRIMARY KEY REFERENCES ai_conversations(id) ON DELETE CASCADE,
   summary                text NOT NULL DEFAULT '',
@@ -261,6 +269,8 @@ CREATE TABLE ai_state (
   emotion                text,
   follow_up              text,
   messages_since_summary integer NOT NULL DEFAULT 0,
+  forgotten              jsonb NOT NULL DEFAULT '[]',
+  edited_at              timestamptz,
   updated_at             timestamptz NOT NULL DEFAULT now()
 );
 

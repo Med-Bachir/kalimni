@@ -39,7 +39,12 @@ import PersonalDataScreen from '../screens/patient/PersonalDataScreen';
 import HistoryScreen from '../screens/patient/HistoryScreen';
 import PrivacyScreen from '../screens/patient/PrivacyScreen';
 import SafetyPlanScreen from '../screens/patient/SafetyPlanScreen';
+import CompanionMemoryScreen from '../screens/patient/CompanionMemoryScreen';
+import JournalLockScreen from '../screens/patient/JournalLockScreen';
+import SessionPrepScreen, { SessionTakeawayScreen } from '../screens/patient/SessionPrepScreen';
 import { useSafetyPlan } from '../store/safetyPlan';
+import { useJournalLock } from '../store/journalLock';
+import { ensureSharingKeypair } from '../crypto/journalCrypto';
 import CrisisScreen from '../screens/shared/CrisisScreen';
 import CallScreen from '../screens/shared/CallScreen';
 import IncomingCallScreen from '../screens/shared/IncomingCallScreen';
@@ -145,6 +150,24 @@ export default function RootNavigator() {
   // crisis screen must never wait on anything.
   useEffect(() => { useSafetyPlan.getState().hydrate(); }, []);
 
+  // Journal encryption (Phase 2.5), per role and non-blocking:
+  //   patient    — find out whether the journal is locked and whether THIS
+  //                device holds the key, before anything tries to write a note.
+  //   specialist — make sure a sharing keypair exists and its public half is
+  //                published, so a patient who wants to share one entry has
+  //                somewhere to seal it to. Doing this at login rather than on
+  //                demand means the key is already there when it is needed.
+  useEffect(() => {
+    if (!user) return;
+    if (user.role === 'patient') {
+      useJournalLock.getState().hydrate();
+    } else if (user.role === 'specialist') {
+      ensureSharingKeypair()
+        .then(({ publicKey }) => api('/journal/keys', { method: 'PUT', body: { publicKey } }))
+        .catch((err) => console.warn('[journal] could not publish sharing key:', err?.code || err));
+    }
+  }, [user?.id, user?.role]);
+
   if (!user) {
     return (
       <Stack.Navigator screenOptions={stackOptions}>
@@ -228,6 +251,17 @@ export default function RootNavigator() {
       {/* The safety plan is written calm and read in crisis — reachable from
           the crisis screen, the profile, and a low check-in. */}
       <Stack.Screen name="SafetyPlan" component={SafetyPlanScreen} />
+      {/* What the companion remembers — reachable from the companion header
+          and from the profile's privacy block. A summary written about you
+          that you cannot reach is not something we ship. */}
+      <Stack.Screen name="CompanionMemory" component={CompanionMemoryScreen} />
+      {/* Locking the journal, and the recovery choice that has to be made
+          with open eyes before the lock engages. */}
+      <Stack.Screen name="JournalLock" component={JournalLockScreen} />
+      {/* Session Witness: the brief the patient writes and sends before a
+          session, and the one line they write after it. */}
+      <Stack.Screen name="SessionPrep" component={SessionPrepScreen} />
+      <Stack.Screen name="SessionTakeaway" component={SessionTakeawayScreen} />
       <Stack.Screen name="Crisis" component={CrisisScreen} options={{ presentation: 'modal' }} />
     </Stack.Navigator>
   );

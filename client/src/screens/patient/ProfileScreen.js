@@ -203,6 +203,10 @@ export default function ProfileScreen({ navigation }) {
           />
           <MenuRow icon="lock-closed-outline" label={t('profile.privacy')} onPress={() => navigation.navigate('Privacy')} />
           <MenuRow icon="map-outline" label={t('profile.safetyPlan')} onPress={() => navigation.navigate('SafetyPlan')} />
+          {/* Sits with privacy and personal data, because that is what it is:
+              the record the companion keeps about you (Phase 2.4). */}
+          <MenuRow icon="bookmark-outline" label={t('memory.title')} onPress={() => navigation.navigate('CompanionMemory')} />
+          <MenuRow icon="lock-closed-outline" label={t('journalLock.title')} onPress={() => navigation.navigate('JournalLock')} />
           <MenuRow icon="call-outline" label={t('profile.emergency')} onPress={() => navigation.navigate('Crisis')} last />
         </Card>
 

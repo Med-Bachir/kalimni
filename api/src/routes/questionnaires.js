@@ -6,6 +6,7 @@ const { validate } = require('../middleware/validate');
 const schemas = require('../schemas');
 const { emitToAdmins } = require('../realtime');
 const alerts = require('../services/alertService');
+const mbc = require('../services/mbcService');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -45,11 +46,12 @@ router.post('/:id/submit', validate(schemas.questionnaireSubmit), async (req, re
     emitToAdmins('matching:new', { request: matchingRequest });
   }
 
-  // PHQ-9 item 9 safety protocol: page through the escalation ladder
+  // PHQ-9 item 9 safety protocol: pages through the escalation ladder
   // (assigned specialist, or the on-call rota for unassigned patients).
-  if (scored.crisisFlag) {
-    await alerts.raiseAlert({ patient: req.user, source: 'questionnaire', resultId: result.id });
-  }
+  // mbcService owns the decision so the alert's detail carries the item-9
+  // trajectory — "ideation rose 1 -> 2 while the total improved" reads very
+  // differently from "first report of ideation" (Phase 2.2).
+  await mbc.reviewSubmission({ patient: req.user, result, crisisFlag: scored.crisisFlag });
 
   res.status(201).json({ result, matchingRequest });
 });

@@ -18,6 +18,7 @@ const llm = require('./llmClient');
 const rag = require('./ragService');
 const risk = require('./riskService');
 const alerts = require('./alertService');
+const memory = require('./memoryService');
 const { scanForRisk, CRISIS_RESOURCES } = require('../utils/safety');
 
 const HISTORY_MESSAGES = 10; // verbatim tail sent to the LLM
@@ -231,6 +232,16 @@ function sanitizeFollowUp(raw, emotion) {
 }
 
 // --- rolling summary (fire-and-forget) ---------------------------------------------
+// Phase 2.4 changed two things about this memory. It is now written in the
+// PATIENT'S language and in plain words, because it is a screen they can read
+// — an English clinical précis about an Arabic-speaking patient is not
+// something they can meaningfully correct. And whatever comes back is run
+// through their forget list before it is stored, so "forget this" outlives
+// the next refresh instead of being re-derived from the same transcript.
+//
+// The forget list itself is never put in this prompt: telling a third-party
+// model "never mention X" sends X to that model, which is precisely what the
+// patient asked us not to do. Enforcement is local (memoryService).
 async function refreshSummaryAsync(conversationId, user) {
   try {
     const [state, messages] = await Promise.all([
@@ -249,11 +260,20 @@ async function refreshSummaryAsync(conversationId, user) {
           role: 'system',
           content: `You maintain the rolling memory of a supportive-companion chat in a mental-health app.
 
+The user can READ AND EDIT this memory in the app, so write it for them, not about them:
+plain everyday ${langName}, no clinical or diagnostic vocabulary, no jargon, short sentences.
+
 Return ONLY JSON:
-{"summary":"<max 120 words, English, factual: situation, recurring themes, what helped>",
+{"summary":"<max 120 words, in ${langName}, factual: their situation, recurring themes, what helped>",
  "topics":["<up to 5 short tags>"],
- "emotion":"<user's current dominant emotion, one word>",
+ "emotion":"<user's current dominant emotion, ONE English word>",
  "followUp":"<see rules below>"}
+${state?.editedAt ? `
+THE PREVIOUS SUMMARY WAS WRITTEN OR CORRECTED BY THE USER THEMSELVES. It is
+authoritative: keep its facts and its wording, do not "improve" or re-word it,
+and do not reinstate anything it leaves out. Only append genuinely new facts
+from the latest exchanges.
+` : ''}
 
 RULES FOR followUp — this string is displayed on the patient's HOME SCREEN, where
 other people may read it over their shoulder:
@@ -272,8 +292,12 @@ No advice, no judgement, no quotes from the user.`,
       ],
       { maxTokens: 500, temperature: 0, tag: 'companion-sum' }
     );
+    // The forget list is enforced HERE, on the way to storage — not by asking
+    // the model nicely. A line the patient deleted must not come back just
+    // because the transcript it was derived from still exists.
+    const summary = memory.applyForgotten(String(parsed.summary || ''), state?.forgotten);
     await repos.upsertAiState(conversationId, {
-      summary: String(parsed.summary || '').slice(0, 1500),
+      summary: summary.slice(0, memory.MAX_SUMMARY_CHARS),
       topics: Array.isArray(parsed.topics) ? parsed.topics.slice(0, 5) : [],
       emotion: parsed.emotion ? String(parsed.emotion).slice(0, 30) : null,
       // Always a string (never null), so an empty answer clears a stale

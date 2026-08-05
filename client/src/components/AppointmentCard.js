@@ -2,6 +2,7 @@ import React from 'react';
 import { View, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigation } from '@react-navigation/native';
 import { T, Card, Button } from './ui';
 import { colors } from '../theme/colors';
 import { useI18n } from '../i18n';
@@ -13,9 +14,16 @@ import { formatDateTime, localizeDigits } from '../utils/format';
 // for the viewer (invitee confirms/declines a proposal; either party cancels a
 // proposed/confirmed one) and handles its own mutations. Reused in chat, home,
 // and the specialist patient file.
+//
+// For a patient it also carries the Session Witness entry points (Phase 2.3):
+// prepare a note before a confirmed session, record one line after it. Both
+// hang off the appointment because that is when they are worth doing — the
+// prep question is only answerable with a date in view.
 export default function AppointmentCard({ appointment, partnerName, compact }) {
   const { t, lang } = useI18n();
-  const userId = useAuth((s) => s.user?.id);
+  const navigation = useNavigation();
+  const user = useAuth((s) => s.user);
+  const userId = user?.id;
   const queryClient = useQueryClient();
 
   const invalidate = () => {
@@ -35,6 +43,11 @@ export default function AppointmentCard({ appointment, partnerName, compact }) {
   const isProposer = appointment.proposedBy === userId;
   const proposed = appointment.status === 'proposed';
   const confirmed = appointment.status === 'confirmed';
+  const isPatient = user?.role === 'patient';
+  // "Past" starts when the slot ends, not when it starts: a session running
+  // long should not flip the card to the after-question mid-conversation.
+  const isPast =
+    Date.now() > new Date(appointment.scheduledAt).getTime() + (appointment.durationMin || 45) * 60_000;
 
   const confirmCancel = () => {
     Alert.alert(t('appointments.cancelConfirm'), '', [
@@ -91,6 +104,34 @@ export default function AppointmentCard({ appointment, partnerName, compact }) {
       {!compact && confirmed && (
         <TouchableOpacity onPress={confirmCancel} style={{ alignSelf: 'flex-start' }}>
           <T w="600" size={13} color={colors.dangerDark}>{t('appointments.cancel')}</T>
+        </TouchableOpacity>
+      )}
+
+      {/* Session Witness (Phase 2.3), patients only. Before a confirmed
+          session: the note they write and choose to send. After it has
+          passed: the one line they take away. Never both at once, and never
+          for the specialist — the brief is the patient's to author. */}
+      {!compact && isPatient && confirmed && (
+        <TouchableOpacity
+          onPress={() => navigation.navigate(
+            isPast ? 'SessionTakeaway' : 'SessionPrep',
+            { appointmentId: appointment.id }
+          )}
+          style={{
+            flexDirection: 'row', alignItems: 'center', gap: 8,
+            backgroundColor: colors.bgSoft, borderRadius: 12,
+            paddingHorizontal: 14, paddingVertical: 12,
+          }}
+        >
+          <Ionicons
+            name={isPast ? 'return-down-back-outline' : 'create-outline'}
+            size={17}
+            color={colors.primary}
+          />
+          <T w="600" size={13} color={colors.primary} style={{ flex: 1 }}>
+            {t(isPast ? 'witness.takeawayCta' : 'witness.prepCta')}
+          </T>
+          <Ionicons name="chevron-forward" size={15} color={colors.faint} />
         </TouchableOpacity>
       )}
     </Card>

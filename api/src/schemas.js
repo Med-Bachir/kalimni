@@ -54,10 +54,79 @@ const aiChat = z.object({
   text: z.string().trim().min(1).max(2000),
 }).strict();
 
+// The patient rewriting what the companion remembers about them (Phase 2.4).
+// Empty is legitimate — it means "you remember nothing about me" — so no min.
+const memoryUpdate = z.object({
+  text: z.string().max(1500),
+}).strict();
+
 const slider = z.number().int().min(1).max(5);
+
+// The written note is either plaintext or ciphertext, never both (the column
+// CHECK in migration 007 enforces it in the database too). `scan` is the
+// client's safety attestation — deliberately NOT required by the schema: a
+// missing attestation must reach the route so it can be dead-lettered and
+// counted, not bounce off a validator as a 400 the client can retry away.
+const scanAttestation = z.object({
+  verdict: z.enum(['none', 'low', 'high']),
+  textHash: z.string().max(120),
+  exp: z.number().int(),
+  sig: z.string().max(200),
+  keyword: z.boolean().optional(),
+  patternsVersion: z.number().int().optional(),
+}).strict();
+
+const envelope = z.object({
+  ciphertext: z.string().max(20000),
+  nonce: z.string().max(120),
+  senderPublicKey: z.string().max(120),
+}).strict();
+
 const checkin = z.object({
   mood: slider, stress: slider, energy: slider, sleep: slider,
   note: z.string().max(2000).nullish(),
+  ciphertext: z.string().max(20000).optional(),
+  nonce: z.string().max(120).optional(),
+  keyVersion: z.number().int().min(1).max(1000).optional(),
+  encAlg: z.string().max(40).optional(),
+  scan: scanAttestation.optional(),
+  crisisEnvelope: envelope.optional(),
+}).strict()
+  .refine((v) => !(v.note && v.ciphertext), { message: 'note_and_ciphertext' })
+  .refine((v) => !v.ciphertext || !!v.nonce, { message: 'nonce_required' });
+
+// --- encrypted journal (Phase 2.5) --------------------------------------------
+const journalScan = z.object({
+  text: z.string().trim().min(1).max(2000),
+}).strict();
+
+const journalRecovery = z.object({
+  method: z.enum(['phrase', 'escrow', 'none']),
+  wrappedKey: z.string().max(2000).optional(),
+  keyVersion: z.number().int().min(1).max(1000).optional(),
+  publicKey: z.string().max(120).optional(),
+}).strict();
+
+const publicKey = z.object({
+  publicKey: z.string().min(20).max(120),
+}).strict();
+
+const journalShare = z.object({
+  envelope,
+}).strict();
+
+// --- session witness (Phase 2.3) --------------------------------------------------
+// `includedIds` is the consent list, and its ABSENCE is meaningful: a save
+// that only carries notes must not silently untick everything. The route
+// distinguishes the two, so the field stays optional here rather than
+// defaulting to [].
+const briefDraft = z.object({
+  notes: z.array(z.string().max(300)).max(3).optional(),
+  includedIds: z.array(z.string().max(40)).max(20).optional(),
+}).strict();
+
+const briefTakeaway = z.object({
+  text: z.string().max(500),
 }).strict();
 
 // --- chat -----------------------------------------------------------------------
@@ -107,7 +176,9 @@ const callInvite = z.object({
 module.exports = {
   register, login, google,
   updateMe, pushToken,
-  aiChat, checkin,
+  aiChat, checkin, memoryUpdate,
+  journalScan, journalRecovery, publicKey, journalShare,
+  briefDraft, briefTakeaway,
   message,
   questionnaireSubmit,
   appointmentCreate, appointmentRespond,

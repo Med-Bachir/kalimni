@@ -166,6 +166,13 @@ describe('safety alerts', () => {
     expect(res.status).toBe(403);
   });
 
+  it('the escalation trail follows the alert\'s own visibility rule', async () => {
+    expect((await req('get', `/api/safety/alerts/${alertA.id}/escalations`, cast.specialistA)).status).toBe(200);
+    expect((await req('get', `/api/safety/alerts/${alertA.id}/escalations`, cast.admin)).status).toBe(200);
+    expect((await req('get', `/api/safety/alerts/${alertA.id}/escalations`, cast.specialistB)).status).toBe(403);
+    expect((await req('get', `/api/safety/alerts/${alertA.id}/escalations`, cast.patientA)).status).toBe(403);
+  });
+
   it('only admins touch the critical list and the on-call rota', async () => {
     expect((await req('get', '/api/safety/alerts/critical', cast.specialistA)).status).toBe(403);
     expect((await req('get', '/api/safety/rota', cast.specialistA)).status).toBe(403);

@@ -105,6 +105,13 @@ export function useRealtime() {
       queryClient.invalidateQueries({ queryKey: ['patients'] });
     };
 
+    // A patient sent (or added a takeaway to) a session brief — Phase 2.3.
+    // Only the treating specialist receives this event; the payload is not
+    // read here, the patient file refetches it through the guarded route.
+    const onBrief = () => {
+      queryClient.invalidateQueries({ queryKey: ['patientBriefs'] });
+    };
+
     socket.on('message:new', onMessage);
     socket.on('message:update', onMessageUpdate);
     socket.on('conversation:read', onRead);
@@ -119,6 +126,7 @@ export function useRealtime() {
     socket.on('users:update', onUsers);
     socket.on('appointment:new', onAppointment);
     socket.on('appointment:update', onAppointment);
+    socket.on('witness:brief', onBrief);
 
     return () => {
       socket.off('message:new', onMessage);
@@ -135,6 +143,7 @@ export function useRealtime() {
       socket.off('users:update', onUsers);
       socket.off('appointment:new', onAppointment);
       socket.off('appointment:update', onAppointment);
+      socket.off('witness:brief', onBrief);
     };
   }, [userId, queryClient]);
 }

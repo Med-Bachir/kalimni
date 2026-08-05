@@ -75,6 +75,9 @@ function makeFakeRepos() {
     escalations: [],           // append-only page audit rows
     riskFailures: new Map(),   // messageId|journalEntryId -> failure row
     journal: new Map(),        // id -> journal entry
+    briefs: new Map(),         // id -> session brief (Session Witness)
+    journalShares: new Map(),  // `${entryId}:${specialistId}` -> share row
+    journalRecovery: new Map(), // userId -> recovery choice
   };
 
   const impl = {
@@ -290,11 +293,52 @@ function makeFakeRepos() {
 
     // journal / daily check-in
     insertJournalEntry: async (e) => {
-      const entry = { id: uid('je'), note: null, createdAt: new Date().toISOString(), ...e };
+      const entry = {
+        id: uid('je'), note: null, ciphertext: null, nonce: null, scan: null,
+        crisisEnvelope: null, createdAt: new Date().toISOString(), ...e,
+      };
       state.journal.set(entry.id, entry);
       return entry;
     },
     findJournalEntry: async (id) => state.journal.get(id) || null,
+
+    // encrypted journal (Phase 2.5)
+    setJournalScan: async (id, scan) => {
+      const e = state.journal.get(id);
+      if (e) e.scan = scan;
+      return e || null;
+    },
+    // Mirrors the SQL: a present-but-unverified attestation counts as unseen.
+    countUnscannedEncryptedEntries: async () =>
+      [...state.journal.values()].filter((e) => e.ciphertext && e.scan?.status !== 'verified').length,
+    insertJournalShare: async (s) => {
+      const key = `${s.entryId}:${s.specialistId}`;
+      const row = { id: uid('jsh'), createdAt: new Date().toISOString(), ...s };
+      state.journalShares.set(key, row);
+      return row;
+    },
+    deleteJournalShare: async (entryId, patientId, specialistId) => {
+      const row = state.journalShares.get(`${entryId}:${specialistId}`);
+      if (row && row.patientId === patientId) state.journalShares.delete(`${entryId}:${specialistId}`);
+    },
+    journalSharesOfPatient: async (patientId) =>
+      [...state.journalShares.values()].filter((s) => s.patientId === patientId),
+    journalSharesFor: async (patientId, specialistId) =>
+      [...state.journalShares.values()].filter(
+        (s) => s.patientId === patientId && s.specialistId === specialistId
+      ),
+    getJournalRecovery: async (userId) => state.journalRecovery.get(userId) || null,
+    upsertJournalRecovery: async (userId, patch) => {
+      const cur = state.journalRecovery.get(userId) || { userId, keyVersion: 1 };
+      Object.assign(cur, patch, { keyVersion: patch.keyVersion || cur.keyVersion });
+      state.journalRecovery.set(userId, cur);
+      return cur;
+    },
+    setUserPublicKey: async (userId, publicKey) => {
+      const u = state.users.get(userId);
+      if (u) u.publicKey = publicKey;
+      return u ? { id: u.id, publicKey } : null;
+    },
     journalEntriesOf: async (userId, limit = 30) =>
       [...state.journal.values()].filter((e) => e.userId === userId).slice(-limit).reverse(),
     journalEntryCountOf: async (userId) => ({
@@ -326,9 +370,23 @@ function makeFakeRepos() {
     lastAiMessageAt: async (conversationId) =>
       state.aiMessages.filter((m) => m.conversationId === conversationId).at(-1)?.createdAt || null,
     getAiState: async (conversationId) => state.aiStates.get(conversationId) || null,
-    upsertAiState: async (conversationId, patch) => {
-      const cur = state.aiStates.get(conversationId) || { conversationId, summary: '', topics: [], messagesSinceSummary: 0 };
-      Object.assign(cur, patch);
+    // Mirrors the SQL's COALESCE semantics: null/undefined keeps the stored
+    // value, '' clears (it is not NULL), and clearEmotion is the one explicit
+    // way to null a column (Phase 2.4's "forget everything").
+    upsertAiState: async (conversationId, patch = {}) => {
+      const cur = state.aiStates.get(conversationId) || {
+        conversationId, summary: '', topics: [], emotion: null, followUp: null,
+        messagesSinceSummary: 0, forgotten: [], editedAt: null,
+      };
+      const keep = (v, prev) => (v === undefined || v === null ? prev : v);
+      cur.summary = keep(patch.summary, cur.summary);
+      cur.topics = keep(patch.topics, cur.topics);
+      cur.emotion = patch.clearEmotion ? null : keep(patch.emotion, cur.emotion);
+      cur.followUp = keep(patch.followUp, cur.followUp);
+      cur.messagesSinceSummary = keep(patch.messagesSinceSummary, cur.messagesSinceSummary);
+      cur.forgotten = keep(patch.forgotten, cur.forgotten);
+      cur.editedAt = keep(patch.editedAt, cur.editedAt);
+      cur.updatedAt = new Date().toISOString();
       state.aiStates.set(conversationId, cur);
       return cur;
     },
@@ -353,6 +411,38 @@ function makeFakeRepos() {
         }
       }
     },
+
+    // session briefs (Session Witness) — the status/ownership predicates live
+    // in the SQL, so they are mirrored here rather than left to the routes.
+    alertsOfPatientSince: async (patientId, since) =>
+      [...state.alerts.values()].filter((a) => a.patientId === patientId && a.createdAt >= since),
+    openBriefDraftOf: async (patientId) =>
+      [...state.briefs.values()].find((b) => b.patientId === patientId && b.status === 'draft') || null,
+    insertSessionBrief: async (b) => {
+      const brief = {
+        id: uid('sb'), status: 'draft', items: [], takeaway: null, appointmentId: null,
+        createdAt: new Date().toISOString(), sharedAt: null, takeawayAt: null, ...b,
+      };
+      state.briefs.set(brief.id, brief);
+      return brief;
+    },
+    findSessionBrief: async (id) => state.briefs.get(id) || null,
+    updateSessionBrief: async (id, patch) => {
+      const b = state.briefs.get(id);
+      if (b) Object.assign(b, patch);
+      return b || null;
+    },
+    deleteSessionBrief: async (id) => { state.briefs.delete(id); },
+    sessionBriefsOf: async (patientId, limit = 20) =>
+      [...state.briefs.values()]
+        .filter((b) => b.patientId === patientId)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .slice(0, limit),
+    sharedBriefsFor: async (patientId, specialistId, limit = 20) =>
+      [...state.briefs.values()]
+        .filter((b) => b.patientId === patientId && b.specialistId === specialistId && b.status === 'shared')
+        .sort((a, b) => (b.sharedAt || '').localeCompare(a.sharedAt || ''))
+        .slice(0, limit),
 
     // push tokens (mirrors the ownership predicates in the SQL)
     savePushToken: async (userId, token, platform) => {

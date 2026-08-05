@@ -98,6 +98,30 @@ router.post('/alerts/:id/ack', validate(schemas.alertAck), async (req, res) => {
   res.json({ alert: updated });
 });
 
+// GET /api/safety/alerts/:id/escalations — the append-only page trail for
+// one alert: who was paged, at which tier, and the clinical action recorded
+// at acknowledgement. Same visibility rule as the alert itself.
+router.get('/alerts/:id/escalations', async (req, res) => {
+  const alert = await repos.findSafetyAlert(req.params.id);
+  if (!alert) return res.status(404).json({ error: 'alert_not_found' });
+  const allowed =
+    req.user.role === 'admin' ||
+    alert.specialistId === req.user.id ||
+    (req.user.role === 'specialist' && (await repos.wasNotifiedForAlert(alert.id, req.user.id)));
+  if (!allowed) return res.status(403).json({ error: 'forbidden' });
+
+  const escalations = await repos.escalationsOf(alert.id);
+  res.json({
+    escalations: await Promise.all(
+      escalations.map(async (e) => ({
+        ...e,
+        // Name for display; the broadcast rows carry no target.
+        notifiedName: e.notifiedId ? (await repos.findUserById(e.notifiedId))?.name || null : null,
+      }))
+    ),
+  });
+});
+
 // --- on-call rota (admin) ----------------------------------------------------
 // Who is paged for UNASSIGNED patients (tier 1 first, tier 2 as the 15-min
 // backup). Without any current rota entry the ladder falls back to paging

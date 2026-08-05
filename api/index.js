@@ -32,10 +32,12 @@ app.get('/api/health/safety', async (_req, res) => {
   const escalation = require('./src/workers/escalation');
   let openScanFailures = null;
   let openAlerts = null;
+  let unscannedEncrypted = null;
   try {
     const repos = require('./src/data/repos');
     openScanFailures = await repos.countOpenRiskScanFailures();
     openAlerts = (await repos.openSafetyAlerts()).length;
+    unscannedEncrypted = await repos.countUnscannedEncryptedEntries();
   } catch { /* db down — the nulls say so */ }
   res.json({
     keywordLayer: true,
@@ -45,6 +47,11 @@ app.get('/api/health/safety', async (_req, res) => {
     ...escalation.healthSnapshot(),  // lastSweepAt
     openScanFailures,
     openAlerts,
+    // Locked journal entries that arrived without a valid safety attestation
+    // (Phase 2.5). Not retryable — there is no plaintext left — so this is a
+    // standing count of entries the safety net never saw, not a queue. It
+    // should be zero; anything else is a client that stopped scanning.
+    unscannedEncrypted,
   });
 });
 
@@ -60,6 +67,8 @@ app.use('/api/calls', require('./src/routes/calls'));
 app.use('/api/appointments', require('./src/routes/appointments'));
 app.use('/api/media', require('./src/routes/media'));
 app.use('/api/ai', require('./src/routes/ai'));
+app.use('/api/witness', require('./src/routes/witness'));
+app.use('/api/journal', require('./src/routes/journal'));
 
 app.use((req, res) => res.status(404).json({ error: 'not_found' }));
 app.use((err, _req, res, _next) => {

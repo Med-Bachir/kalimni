@@ -33,6 +33,14 @@ const CRISIS_RESOURCES = {
 };
 
 // Conservative keyword lists (Arabic incl. common Algerian phrasing + French).
+//
+// Served to the app by GET /api/journal/scan-patterns (Phase 2.5): once the
+// journal is encrypted, layer 1 has to run on the device, and a second copy
+// of this list living in the client bundle is a list that drifts. Bump
+// PATTERNS_VERSION whenever RISK_PATTERNS changes — an entry's scan
+// attestation records the version that judged it.
+const PATTERNS_VERSION = 1;
+
 const RISK_PATTERNS = [
   // Arabic
   'انتحار', 'أنتحر', 'الانتحار', 'اؤذي نفسي', 'أؤذي نفسي', 'إيذاء نفسي',
@@ -80,4 +88,7 @@ const scanForRiskAdjacent = (text) => {
   return NORMALIZED_ADJACENT.some((p) => value.includes(p));
 };
 
-module.exports = { CRISIS_RESOURCES, scanForRisk, scanForRiskAdjacent };
+module.exports = {
+  CRISIS_RESOURCES, scanForRisk, scanForRiskAdjacent,
+  RISK_PATTERNS, PATTERNS_VERSION,
+};

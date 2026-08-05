@@ -1,0 +1,132 @@
+/* Console styling. Desk-shaped: dense tables, no decoration, high contrast.
+   The palette matches the mobile app so a specialist moving between them
+   reads the same colours as the same meanings. */
+
+:root {
+  --bg: #F4F7F8;
+  --card: #FFFFFF;
+  --border: #E3EAEC;
+  --ink: #1B2A2F;
+  --body: #3D5259;
+  --muted: #6B838C;
+  --faint: #9BAEB5;
+  --primary: #29627E;
+  --primary-dark: #1E4A60;
+  --success: #2F7D5E;
+  --success-bg: #E6F2EC;
+  --warn: #9A6B1F;
+  --warn-bg: #FBF1DF;
+  --danger: #B4483F;
+  --danger-dark: #8F332C;
+  --danger-bg: #FBEAE8;
+  --radius: 12px;
+  --shadow: 0 1px 2px rgba(27, 42, 47, .06), 0 4px 14px rgba(27, 42, 47, .04);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "IBM Plex Sans Arabic", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+a { color: var(--primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+h1, h2, h3 { margin: 0; line-height: 1.3; }
+h1 { font-size: 22px; } h2 { font-size: 17px; } h3 { font-size: 15px; }
+
+/* --- layout ------------------------------------------------------------- */
+.app { min-height: 100vh; display: flex; flex-direction: column; }
+
+.header {
+  background: var(--card); border-bottom: 1px solid var(--border);
+  padding: 0 24px; display: flex; align-items: center; gap: 20px; height: 60px;
+  position: sticky; top: 0; z-index: 10;
+}
+.header .brand { font-weight: 700; font-size: 16px; }
+.header nav { display: flex; gap: 4px; margin-inline-start: 12px; }
+.header nav a {
+  padding: 7px 14px; border-radius: 9px; color: var(--body); font-weight: 500;
+}
+.header nav a:hover { background: var(--bg); text-decoration: none; }
+.header nav a.active { background: var(--primary); color: #fff; }
+.header .spacer { margin-inline-start: auto; }
+
+.main { padding: 24px; max-width: 1180px; width: 100%; margin: 0 auto; flex: 1; }
+.stack { display: flex; flex-direction: column; gap: 16px; }
+.row { display: flex; align-items: center; gap: 10px; }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+
+/* --- surfaces ----------------------------------------------------------- */
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow);
+}
+.card.danger { border-color: var(--danger); background: #FFFBFA; }
+.card.warn { border-color: var(--warn-bg); background: var(--warn-bg); }
+
+.muted { color: var(--muted); }
+.faint { color: var(--faint); font-size: 12px; }
+.small { font-size: 12.5px; }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px;
+  border-radius: 999px; font-size: 11.5px; font-weight: 600;
+  background: var(--bg); color: var(--muted);
+}
+.badge.danger { background: var(--danger-bg); color: var(--danger-dark); }
+.badge.warn { background: var(--warn-bg); color: var(--warn); }
+.badge.success { background: var(--success-bg); color: var(--success); }
+.badge.primary { background: #E3EFF4; color: var(--primary); }
+
+/* --- controls ----------------------------------------------------------- */
+button, .btn {
+  font: inherit; font-weight: 600; cursor: pointer; border-radius: 10px;
+  padding: 9px 16px; border: 1px solid transparent; background: var(--primary);
+  color: #fff; min-height: 40px;
+}
+button:hover:not(:disabled) { background: var(--primary-dark); }
+button:disabled { opacity: .55; cursor: default; }
+button.ghost { background: transparent; color: var(--body); border-color: var(--border); }
+button.ghost:hover:not(:disabled) { background: var(--bg); }
+button.danger { background: var(--danger); }
+button.danger:hover:not(:disabled) { background: var(--danger-dark); }
+button.link { background: none; color: var(--primary); border: none; padding: 0; min-height: 0; }
+
+input, textarea, select {
+  font: inherit; width: 100%; padding: 10px 12px; border-radius: 10px;
+  border: 1.5px solid var(--border); background: var(--card); color: var(--ink);
+  min-height: 42px;
+}
+input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); outline-offset: -1px; }
+label { display: block; font-weight: 600; font-size: 12.5px; margin-bottom: 5px; color: var(--body); }
+.field { margin-bottom: 14px; }
+
+/* --- tables ------------------------------------------------------------- */
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 11px 12px; text-align: start; border-bottom: 1px solid var(--border); }
+th { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .3px; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr.clickable:hover { background: var(--bg); cursor: pointer; }
+.table-wrap { overflow-x: auto; }
+
+/* --- dialog ------------------------------------------------------------- */
+.backdrop {
+  position: fixed; inset: 0; background: rgba(20, 30, 35, .45);
+  display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 50;
+}
+.dialog { background: var(--card); border-radius: 16px; padding: 20px; width: 100%; max-width: 520px; }
+
+/* --- alerts ------------------------------------------------------------- */
+.critical-banner {
+  background: var(--danger-bg); border: 2px solid var(--danger-dark);
+  border-radius: var(--radius); padding: 14px; margin-bottom: 16px;
+}
+.trail { border-inline-start: 2px solid var(--border); padding-inline-start: 12px; margin: 0; list-style: none; }
+.trail li { padding: 3px 0; font-size: 12.5px; color: var(--muted); }
+
+.center { display: flex; align-items: center; justify-content: center; min-height: 50vh; }

@@ -14,6 +14,7 @@ import { PopIn, Pulse } from './motion';
 import MoodSky from './MoodSky';
 import { tap as hapticTap, success as hapticSuccess, celebrate as hapticCelebrate } from '../utils/haptics';
 import { checkin as soundCheckin, milestone as soundMilestone } from '../utils/sound';
+import { useJournalLock } from '../store/journalLock';
 
 // Daily check-in: mood/stress/energy/sleep on a 1-5 tap scale + optional
 // journal note. The card renders on HomeScreen and hides itself once today's
@@ -58,7 +59,14 @@ export default function DailyCheckin() {
   const { data } = useQuery({ queryKey: ['checkins'], queryFn: () => api('/ai/checkins') });
 
   const save = useMutation({
-    mutationFn: () => api('/ai/checkin', { method: 'POST', body: { ...values, note: note.trim() || undefined } }),
+    // The note goes up as plaintext, or sealed with its safety attestation
+    // when the patient has locked their journal (Phase 2.5). prepareNote()
+    // owns that decision and the scan-before-encrypt ordering; this call site
+    // stays a call site.
+    mutationFn: async () => {
+      const notePart = await useJournalLock.getState().prepareNote(note);
+      return api('/ai/checkin', { method: 'POST', body: { ...values, ...notePart } });
+    },
     onSuccess: ({ feedback, total }) => {
       // Device-side record for the badges: today counted as showing up, a
       // written note counted toward the journalling badges, and a mood of 1-2

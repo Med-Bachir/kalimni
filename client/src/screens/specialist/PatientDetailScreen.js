@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, ScrollView, TouchableOpacity, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -7,14 +7,58 @@ import AppointmentCard from '../../components/AppointmentCard';
 import ProposeSessionModal from '../../components/ProposeSessionModal';
 import AckAlertModal from '../../components/AckAlertModal';
 import MoodTrend from '../../components/MoodTrend';
+import MbcCard from '../../components/MbcCard';
+import BriefCard from '../../components/BriefCard';
 import { colors } from '../../theme/colors';
 import { useI18n } from '../../i18n';
 import { api } from '../../api/client';
 import { formatDate, localizeDigits } from '../../utils/format';
+import { openSharedEnvelope } from '../../crypto/journalCrypto';
 
 const CODES = { gad7: 'GAD-7', phq9: 'PHQ-9' };
 
 // Patient file: intake history, open safety alerts, sessions, jump into chat.
+// A locked journal note (Phase 2.5). Either the patient sealed this one entry
+// to this clinician — in which case only their device can open it, and it is
+// opened here — or they did not, and the honest thing to show is that there
+// is something here they chose to keep.
+function SharedNote({ entry }) {
+  const { t } = useI18n();
+  const [text, setText] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!entry.sharedEnvelope) return undefined;
+    openSharedEnvelope(entry.sharedEnvelope)
+      .then((opened) => { if (!cancelled) setText(opened); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [entry.sharedEnvelope]);
+
+  if (entry.sharedEnvelope) {
+    return (
+      <View style={{ gap: 4 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Ionicons name="lock-open-outline" size={13} color={colors.primary} />
+          <T size={11.5} w="600" color={colors.primary}>{t('specialist.sharedNote')}</T>
+        </View>
+        <T size={13} color={colors.body} style={{ lineHeight: 21 }}>
+          {text === null ? t('specialist.sharedNoteOpening') : `"${text}"`}
+        </T>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      <Ionicons name="lock-closed-outline" size={13} color={colors.faint} />
+      <T size={12} color={colors.faint} style={{ flex: 1, lineHeight: 19 }}>
+        {t('specialist.lockedNote')}
+      </T>
+    </View>
+  );
+}
+
 export default function PatientDetailScreen({ navigation, route }) {
   const { patientId, patient } = route.params;
   const { t, lang, L } = useI18n();
@@ -44,6 +88,20 @@ export default function PatientDetailScreen({ navigation, route }) {
     queryKey: ['patientCheckins', patientId],
     queryFn: () => api(`/specialist/patients/${patientId}/checkins`),
   });
+
+  // Measurement-based care (Phase 2.2). Specialist-only endpoint; nothing
+  // here is ever rendered on a patient screen.
+  const { data: mbcData } = useQuery({
+    queryKey: ['patientMbc', patientId],
+    queryFn: () => api(`/specialist/patients/${patientId}/mbc`),
+  });
+  // Session briefs the patient chose to send (Phase 2.3). Shared only — the
+  // route refuses to hand over a draft.
+  const { data: briefData } = useQuery({
+    queryKey: ['patientBriefs', patientId],
+    queryFn: () => api(`/specialist/patients/${patientId}/briefs`),
+  });
+
   const toggleAi = useMutation({
     mutationFn: (enabled) => api(`/specialist/patients/${patientId}/ai`, { method: 'PUT', body: { enabled } }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['patientCheckins', patientId] }),
@@ -107,6 +165,13 @@ export default function PatientDetailScreen({ navigation, route }) {
             ))
           )}
         </View>
+
+        {/* What the patient chose to say, above what the app computed about
+            them. Reading order is a clinical statement too. */}
+        <BriefCard briefs={briefData?.briefs} />
+
+        {/* Measurement-based care: trajectories, reliable change, flags */}
+        <MbcCard data={mbcData} />
 
         {/* Sessions */}
         {patient.conversationId && (
@@ -173,8 +238,15 @@ export default function PatientDetailScreen({ navigation, route }) {
                     </T>
                   ))}
                 </View>
+                {/* Phase 2.5: the sliders above always arrive; the written
+                    note only when the patient left the journal unlocked or
+                    sealed this one entry to you. A locked entry is shown as
+                    locked rather than dropped — an empty-looking day and a
+                    day the patient chose to keep are different facts. */}
                 {e.note ? (
                   <T size={13} color={colors.body} style={{ lineHeight: 21 }}>"{e.note}"</T>
+                ) : e.locked ? (
+                  <SharedNote entry={e} />
                 ) : null}
               </Card>
               ))}
