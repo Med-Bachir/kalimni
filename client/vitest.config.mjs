@@ -10,7 +10,8 @@ export default defineConfig({
   test: {
     include: ['test/**/*.test.js'],
     alias: {
-      'expo-secure-store': path.resolve(__dirname, 'test/stubs/expo-secure-store.js'),
+      'expo-secure-store': path.resolve(import.meta.dirname, 'test/stubs/expo-secure-store.js'),
+      'expo-crypto': path.resolve(import.meta.dirname, 'test/stubs/expo-crypto.js'),
     },
   },
 });

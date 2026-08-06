@@ -1,5 +1,20 @@
 import nacl from 'tweetnacl';
 import * as SecureStore from 'expo-secure-store';
+import { getRandomValues } from 'expo-crypto';
+
+// --- randomness, wired explicitly ------------------------------------------------
+// tweetnacl finds a PRNG by looking for `self.crypto.getRandomValues` (browsers)
+// or `require('crypto')` (Node). Hermes guarantees NEITHER, so on a real phone
+// nacl.randomBytes throws "no PRNG" — at key generation, nonce generation and
+// recovery-phrase generation, i.e. every security-critical moment in this file.
+//
+// So it is wired here rather than left to whatever the runtime happens to
+// provide. Ambient polyfills come and go between Expo SDKs; a patient's key
+// must not depend on which one is in fashion.
+nacl.setPRNG((x, n) => {
+  const bytes = getRandomValues(new Uint8Array(n));
+  for (let i = 0; i < n; i += 1) x[i] = bytes[i];
+});
 
 // Journal encryption (Phase 2.5). The patient holds the key; the server holds
 // ciphertext it cannot open.
@@ -37,9 +52,63 @@ const SHARE_SK_STORE = 'kalimni.journal.sharesk.v1';
 const KEY_VERSION = 1;
 
 // --- encoding ------------------------------------------------------------------
+// UTF-8 by hand, for the same reason as the PRNG above: TextEncoder and
+// TextDecoder are not part of the Hermes baseline, they arrive (or don't) via
+// whichever polyfill the current Expo SDK bundles, and a patient's journal
+// must not be one runtime change away from unreadable. Every note here is
+// Arabic or French, so the multi-byte paths are the normal case, not an edge.
 const utf8 = {
-  encode: (s) => new TextEncoder().encode(s),
-  decode: (b) => new TextDecoder().decode(b),
+  encode(str) {
+    const s = String(str);
+    const out = [];
+    for (let i = 0; i < s.length; i += 1) {
+      let cp = s.charCodeAt(i);
+      // Surrogate pair (emoji) -> one code point.
+      if (cp >= 0xd800 && cp <= 0xdbff && i + 1 < s.length) {
+        const low = s.charCodeAt(i + 1);
+        if (low >= 0xdc00 && low <= 0xdfff) {
+          cp = 0x10000 + ((cp - 0xd800) << 10) + (low - 0xdc00);
+          i += 1;
+        }
+      }
+      if (cp >= 0xd800 && cp <= 0xdfff) cp = 0xfffd; // lone surrogate
+      if (cp < 0x80) out.push(cp);
+      else if (cp < 0x800) out.push(0xc0 | (cp >> 6), 0x80 | (cp & 63));
+      else if (cp < 0x10000) out.push(0xe0 | (cp >> 12), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));
+      else out.push(0xf0 | (cp >> 18), 0x80 | ((cp >> 12) & 63), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));
+    }
+    return new Uint8Array(out);
+  },
+
+  decode(bytes) {
+    let out = '';
+    let i = 0;
+    while (i < bytes.length) {
+      const b = bytes[i];
+      let cp;
+      let size;
+      if (b < 0x80) { cp = b; size = 1; }
+      else if ((b & 0xe0) === 0xc0) { cp = b & 0x1f; size = 2; }
+      else if ((b & 0xf0) === 0xe0) { cp = b & 0x0f; size = 3; }
+      else if ((b & 0xf8) === 0xf0) { cp = b & 0x07; size = 4; }
+      else { out += '�'; i += 1; continue; }
+
+      if (i + size > bytes.length) { out += '�'; break; }
+      for (let k = 1; k < size && cp >= 0; k += 1) {
+        const c = bytes[i + k];
+        cp = (c & 0xc0) === 0x80 ? (cp << 6) | (c & 63) : -1;
+      }
+      i += size;
+      if (cp < 0) { out += '�'; continue; }
+      if (cp > 0xffff) {
+        const v = cp - 0x10000;
+        out += String.fromCharCode(0xd800 + (v >> 10), 0xdc00 + (v & 1023));
+      } else {
+        out += String.fromCharCode(cp);
+      }
+    }
+    return out;
+  },
 };
 
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';

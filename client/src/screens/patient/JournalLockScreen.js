@@ -32,6 +32,7 @@ export default function JournalLockScreen({ navigation }) {
   const status = useJournalLock((s) => s.status);
   const method = useJournalLock((s) => s.method);
   const hydrate = useJournalLock((s) => s.hydrate);
+  const unavailable = useJournalLock((s) => s.unavailable);
   const enable = useJournalLock((s) => s.enable);
   const restore = useJournalLock((s) => s.restore);
 
@@ -44,7 +45,7 @@ export default function JournalLockScreen({ navigation }) {
 
   useEffect(() => { hydrate(); }, [hydrate]);
 
-  if (status === 'unknown') return <LoadingView />;
+  if (status === 'unknown' && !unavailable) return <LoadingView />;
 
   const header = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -83,6 +84,27 @@ export default function JournalLockScreen({ navigation }) {
     fontFamily: 'IBMPlexSansArabic_400Regular',
     textAlign: 'left', textAlignVertical: 'top',
   };
+
+  // --- encryption is not available on this build --------------------------------
+  // Better an explanation than a button that does nothing. Notes keep saving
+  // the way they always did, and the screen says so rather than leaving the
+  // patient to guess whether their journal is protected.
+  if (unavailable) {
+    return (
+      <Screen edges={['top', 'bottom']}>
+        <ScrollView contentContainerStyle={{ padding: 22, gap: 16 }}>
+          {header}
+          <Card style={{ padding: 20, gap: 10, alignItems: 'center' }}>
+            <Ionicons name="cloud-offline-outline" size={38} color={colors.faint} />
+            <T w="700" size={16}>{t('journalLock.unavailableTitle')}</T>
+            <T size={13.5} color={colors.muted} style={{ textAlign: 'center', lineHeight: 22 }}>
+              {t('journalLock.unavailableBody')}
+            </T>
+          </Card>
+        </ScrollView>
+      </Screen>
+    );
+  }
 
   // --- the phrase, shown exactly once -------------------------------------------
   if (phrase) {

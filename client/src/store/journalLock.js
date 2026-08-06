@@ -1,9 +1,26 @@
 import { create } from 'zustand';
 import { api } from '../api/client';
-import {
-  createJournalKey, restoreJournalKey, loadJournalKey,
-  encryptNote, sealToSpecialist,
-} from '../crypto/journalCrypto';
+
+// The crypto module is loaded LAZILY, and that is a safety decision rather
+// than a performance one.
+//
+// It pulls in two native modules (expo-secure-store, expo-crypto). A static
+// import puts them on the app's boot path, so anything wrong with them — a
+// version that does not match the SDK, a JS-only update that shipped without
+// the native side — takes the WHOLE APP down before the first screen renders.
+// That happened: the first build of this feature stopped immediately on
+// launch.
+//
+// Rule 6 of the product rules is that the crisis path is never more than one
+// tap away. An app that will not open has no crisis path at all. Journal
+// encryption is a feature; being able to reach the emergency numbers is the
+// reason this app exists. So a broken crypto module must degrade to "the
+// journal lock is unavailable", never to "the app does not start".
+let cryptoModule = null;
+async function loadCrypto() {
+  if (!cryptoModule) cryptoModule = await import('../crypto/journalCrypto');
+  return cryptoModule;
+}
 
 // The journal lock (Phase 2.5): state, setup, and the one path that turns a
 // written note into something the server stores but cannot read.
@@ -34,8 +51,14 @@ export const useJournalLock = create((set, get) => ({
   patternsVersion: null,
   specialistPublicKey: null,
 
+  // Set when the crypto module itself will not load (a native module missing
+  // or mismatched). The lock screen shows this instead of the setup flow; the
+  // rest of the app carries on, including the crisis path.
+  unavailable: false,
+
   async hydrate() {
     try {
+      const { loadJournalKey } = await loadCrypto();
       const [{ recovery }, key] = await Promise.all([
         api('/journal/recovery'),
         loadJournalKey(),
@@ -46,9 +69,17 @@ export const useJournalLock = create((set, get) => ({
         method: recovery.method,
         wrappedKey: recovery.wrappedKey || null,
       });
-    } catch {
-      // Offline: say nothing rather than guessing. A wrong "off" here would
-      // send a note in the clear that the patient believes is locked.
+    } catch (err) {
+      // Two different failures, deliberately not collapsed:
+      //   crypto missing — the lock can never work on this build. Say so, so
+      //     the setup screen offers an explanation instead of a dead button.
+      //   anything else (offline) — say NOTHING rather than guessing. A wrong
+      //     "off" here would send a note in the clear that the patient
+      //     believes is locked, which is the worst outcome available.
+      if (!cryptoModule) {
+        console.warn('[journal] encryption unavailable on this build:', err?.message || err);
+        return set({ status: 'unknown', unavailable: true });
+      }
       return set({ status: 'unknown' });
     }
   },
@@ -74,6 +105,7 @@ export const useJournalLock = create((set, get) => ({
 
   /** Turn the lock on. Returns the recovery phrase to show ONCE, or null. */
   async enable({ method }) {
+    const { createJournalKey } = await loadCrypto();
     const { keyVersion, wrappedKey, phrase } = await createJournalKey({ method });
     await api('/journal/recovery', { method: 'PUT', body: { method, wrappedKey, keyVersion } });
     set({ status: 'on', method, wrappedKey });
@@ -84,6 +116,7 @@ export const useJournalLock = create((set, get) => ({
   async restore({ phrase }) {
     const { wrappedKey } = get();
     if (!wrappedKey) return false;
+    const { restoreJournalKey } = await loadCrypto();
     const ok = await restoreJournalKey({ wrappedKey, phrase });
     if (ok) set({ status: 'on' });
     return ok;
@@ -122,6 +155,7 @@ export const useJournalLock = create((set, get) => ({
       console.warn('[journal] safety scan unavailable — entry will be flagged unscanned', err?.code || err);
     }
 
+    const { encryptNote, sealToSpecialist } = await loadCrypto();
     const sealed = await encryptNote(note);
     const body = { ...sealed, ...(scan ? { scan } : {}) };
 
@@ -140,6 +174,7 @@ export const useJournalLock = create((set, get) => ({
   async shareEntry(entryId, plaintext) {
     const publicKey = get().specialistPublicKey || (await get().loadSpecialistKey());
     if (!publicKey) return { error: 'no_specialist_key' };
+    const { sealToSpecialist } = await loadCrypto();
     await api(`/journal/entries/${entryId}/share`, {
       method: 'POST',
       body: { envelope: sealToSpecialist(plaintext, publicKey) },

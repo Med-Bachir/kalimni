@@ -446,6 +446,7 @@ export default {
     lockedNote: 'Note verrouillée — le patient a choisi de ne pas la partager. Les scores ci-dessus restent disponibles.',
     sharedNote: 'Partagée avec vous par le patient',
     sharedNoteOpening: 'Ouverture...',
+    sharedNoteUnreadable: 'Partagée par le patient, mais impossible à ouvrir sur cet appareil.',
     patientsTitle: 'Mes patients',
     searchPlaceholder: 'Rechercher un patient...',
     filterAll: 'Tous',
@@ -1056,6 +1057,8 @@ export default {
     unshare: 'Ne plus partager',
     unshareNote: 'Ne plus partager empêche de la rouvrir, mais ce que votre spécialiste a déjà lu, il l’a lu.',
     shareNoKey: 'Votre spécialiste n’a pas encore activé le partage sur son appareil.',
+    unavailableTitle: 'Le verrou n’est pas disponible dans cette version',
+    unavailableBody: 'Cette fonctionnalité nécessite une mise à jour complète de l’application. Vos notes sont enregistrées comme avant, et tout le reste fonctionne normalement.',
   },
 
   // L’autre face de 2.3 : ce que lit le spécialiste.

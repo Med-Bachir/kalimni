@@ -104,10 +104,46 @@ Words that carry weight for this population (*fear, pain, knife, prison,
 regret, nerve, whip*) were removed from the list. A recovery phrase should not
 read like a symptom checklist.
 
+## The launch crash, and what it changed
+
+The first build of this feature **stopped immediately on launch.** Two causes,
+both mine, both worth recording:
+
+1. **`expo-secure-store` was installed with `npm install`, not `npx expo
+   install`** — so npm resolved the standalone latest (57.0.1) instead of the
+   version matching Expo SDK 54 (`~15.0.8`). A native module built against a
+   different SDK does not load. `npx expo-doctor` catches this in seconds and
+   is now the thing to run after adding any Expo package.
+2. **tweetnacl had no PRNG.** It wires one from `self.crypto.getRandomValues`
+   or Node's `require('crypto')`, and Hermes guarantees neither — so
+   `nacl.randomBytes` would have thrown `no PRNG` at key generation, nonce
+   generation and phrase generation. It is now set explicitly from
+   `expo-crypto`. `TextEncoder`/`TextDecoder` were the same class of
+   assumption and are now hand-rolled UTF-8 in the module.
+
+The deeper problem was not either bug but the **coupling**: `journalCrypto`
+was statically imported from `navigation/index.js`, which put two native
+modules on the boot path. Anything wrong with them took the whole app down
+before the first screen rendered — including the crisis screen. Rule 6 says
+the crisis path is never more than one tap away, and an app that will not open
+has no crisis path at all.
+
+So the crypto module is now loaded **lazily at all three call sites**
+(`store/journalLock.js`, `navigation/index.js`, the specialist patient file),
+and a failure to load sets `useJournalLock.unavailable`, which shows an
+explanation on the lock screen. Journal encryption is a feature; being able to
+reach the emergency numbers is why the app exists. A broken feature must
+degrade to "the lock is unavailable", never to "the app does not start".
+
 ## Operational notes
 
-- `expo-secure-store` is a native module: **this does not ship over EAS Update.**
-  It needs a new build.
+- `expo-secure-store` and `expo-crypto` are native modules: **this does not
+  ship over EAS Update.** It needs a new build, and `app.json` must list
+  `expo-secure-store` in `plugins`.
+- Add Expo packages with `npx expo install`, never `npm install`, and run
+  `npx expo-doctor` afterwards.
+- `npx expo export --platform android` catches resolution and bundling
+  failures without a full build (`npm run export:check`).
 - The specialist's sharing keypair is generated on their **phone** and its
   private half never reaches a browser, so the web console can show that a note
   is shared but cannot open it. It links to the app instead of pretending the

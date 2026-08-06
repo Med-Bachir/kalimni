@@ -13,7 +13,6 @@ import { colors } from '../../theme/colors';
 import { useI18n } from '../../i18n';
 import { api } from '../../api/client';
 import { formatDate, localizeDigits } from '../../utils/format';
-import { openSharedEnvelope } from '../../crypto/journalCrypto';
 
 const CODES = { gad7: 'GAD-7', phq9: 'PHQ-9' };
 
@@ -29,9 +28,13 @@ function SharedNote({ entry }) {
   useEffect(() => {
     let cancelled = false;
     if (!entry.sharedEnvelope) return undefined;
-    openSharedEnvelope(entry.sharedEnvelope)
+    // Lazy import, like everywhere else the crypto is touched: it pulls in
+    // native modules, and a clinician's patient file must still render if
+    // they are ever missing.
+    import('../../crypto/journalCrypto')
+      .then(({ openSharedEnvelope }) => openSharedEnvelope(entry.sharedEnvelope))
       .then((opened) => { if (!cancelled) setText(opened); })
-      .catch(() => {});
+      .catch(() => { if (!cancelled) setText(''); });
     return () => { cancelled = true; };
   }, [entry.sharedEnvelope]);
 
@@ -42,8 +45,12 @@ function SharedNote({ entry }) {
           <Ionicons name="lock-open-outline" size={13} color={colors.primary} />
           <T size={11.5} w="600" color={colors.primary}>{t('specialist.sharedNote')}</T>
         </View>
-        <T size={13} color={colors.body} style={{ lineHeight: 21 }}>
-          {text === null ? t('specialist.sharedNoteOpening') : `"${text}"`}
+        <T size={13} color={text ? colors.body : colors.faint} style={{ lineHeight: 21 }}>
+          {text === null ? t('specialist.sharedNoteOpening')
+            : text ? `"${text}"`
+              // Shared, but this device cannot open it — a different phone, or
+              // a build without the crypto. Say which, rather than render "".
+              : t('specialist.sharedNoteUnreadable')}
         </T>
       </View>
     );

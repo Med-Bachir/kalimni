@@ -44,7 +44,6 @@ import JournalLockScreen from '../screens/patient/JournalLockScreen';
 import SessionPrepScreen, { SessionTakeawayScreen } from '../screens/patient/SessionPrepScreen';
 import { useSafetyPlan } from '../store/safetyPlan';
 import { useJournalLock } from '../store/journalLock';
-import { ensureSharingKeypair } from '../crypto/journalCrypto';
 import CrisisScreen from '../screens/shared/CrisisScreen';
 import CallScreen from '../screens/shared/CallScreen';
 import IncomingCallScreen from '../screens/shared/IncomingCallScreen';
@@ -162,7 +161,12 @@ export default function RootNavigator() {
     if (user.role === 'patient') {
       useJournalLock.getState().hydrate();
     } else if (user.role === 'specialist') {
-      ensureSharingKeypair()
+      // Imported lazily and inside the catch: the crypto module pulls in
+      // native modules, and nothing on the boot path may be able to stop the
+      // app from opening (Rule 6 — the crisis path is one tap away, and an
+      // app that will not start has no crisis path).
+      import('../crypto/journalCrypto')
+        .then(({ ensureSharingKeypair }) => ensureSharingKeypair())
         .then(({ publicKey }) => api('/journal/keys', { method: 'PUT', body: { publicKey } }))
         .catch((err) => console.warn('[journal] could not publish sharing key:', err?.code || err));
     }
